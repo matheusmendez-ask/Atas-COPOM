@@ -13,6 +13,10 @@ from src.config import settings
 logger = logging.getLogger(__name__)
 
 
+class EmbeddingUnavailableError(RuntimeError):
+    """Raised when the configured embedding provider cannot produce vectors."""
+
+
 class EmbeddingGenerator:
     """Generates dense vector embeddings for text chunks in batches."""
 
@@ -32,42 +36,60 @@ class EmbeddingGenerator:
         self._initialize_provider()
 
     def _initialize_provider(self) -> None:
-        """Initialize the underlying embedding model based on configuration."""
-        if self.provider == "fastembed":
-            try:
-                from fastembed import TextEmbedding
+        """Load the configured provider, refusing to substitute a different one.
 
-                logger.info(f"Initializing FastEmbed model: {self.model_name}")
-                self._model = TextEmbedding(model_name=self.model_name)
-            except Exception as err:
-                logger.warning(
-                    f"Could not load FastEmbed model '{self.model_name}': {err}. "
-                    "Falling back to default BAAI/bge-small-en-v1.5 or mock."
-                )
-                try:
-                    from fastembed import TextEmbedding
+        A wrong-but-working embedder is worse than none: the pipeline would index
+        vectors unrelated to the configured model, and the only symptom -- poor
+        search results -- points away from the real cause.
+        """
+        if self.provider == "openai":
+            self._initialize_openai()
+        else:
+            self._initialize_fastembed()
 
-                    self._model = TextEmbedding()
-                except Exception as inner_err:
-                    logger.error(f"FastEmbed initialization failed: {inner_err}")
-                    self._model = None
+    def _initialize_fastembed(self) -> None:
+        """Load the local ONNX model named by EMBEDDING_MODEL_NAME, or fail."""
+        try:
+            from fastembed import TextEmbedding
+        except ImportError as err:  # pragma: no cover - fastembed is a core dependency
+            raise EmbeddingUnavailableError(
+                "The 'fastembed' package is required for local embeddings. "
+                'Reinstall the project: pip install -e ".[dev]"'
+            ) from err
 
-        elif self.provider == "openai":
-            if not settings.OPENAI_API_KEY:
-                logger.warning("OPENAI_API_KEY not set. Falling back to FastEmbed provider.")
-                self.provider = "fastembed"
-                self._initialize_provider()
-            else:
-                try:
-                    import openai
+        logger.info(f"Initializing FastEmbed model: {self.model_name}")
+        try:
+            self._model = TextEmbedding(model_name=self.model_name)
+        except Exception as err:
+            raise EmbeddingUnavailableError(
+                f"Could not load the FastEmbed model '{self.model_name}': {err}. Fix "
+                "EMBEDDING_MODEL_NAME (and EMBEDDING_DIMENSION to match it) instead of "
+                "indexing with a model other than the one configured."
+            ) from err
 
-                    self._openai_client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
-                    logger.info(
-                        f"OpenAI Embedding client initialized with model: {self.model_name}"
-                    )
-                except Exception as err:
-                    logger.error(f"Failed to initialize OpenAI client: {err}")
-                    self._model = None
+    def _initialize_openai(self) -> None:
+        """Build the OpenAI embeddings client, or fail with what is missing."""
+        if not settings.OPENAI_API_KEY:
+            raise EmbeddingUnavailableError(
+                "EMBEDDING_PROVIDER is 'openai' but OPENAI_API_KEY is not set. Set the key, "
+                "or set EMBEDDING_PROVIDER=fastembed to embed locally."
+            )
+
+        try:
+            import openai
+        except ImportError as err:  # pragma: no cover - exercised by the extras install
+            raise EmbeddingUnavailableError(
+                "The 'openai' package is an optional extra required by "
+                'EMBEDDING_PROVIDER=openai. Install it with: pip install -e ".[openai]"'
+            ) from err
+
+        try:
+            self._openai_client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+        except Exception as err:
+            raise EmbeddingUnavailableError(
+                f"Could not initialize the OpenAI embeddings client: {err}"
+            ) from err
+        logger.info(f"OpenAI embedding client initialized with model: {self.model_name}")
 
     @retry(
         stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10), reraise=True
@@ -92,29 +114,13 @@ class EmbeddingGenerator:
         choice of model a pure configuration change.
         """
         if self._model is None:
-            # Fallback deterministic vector generator for headless/isolated testing
-            return self._generate_fallback_vectors(texts)
+            raise EmbeddingUnavailableError(
+                "No embedding model is loaded, so no vector can be produced. "
+                "Check EMBEDDING_MODEL_NAME and EMBEDDING_PROVIDER."
+            )
 
         embed = self._model.query_embed if as_query else self._model.passage_embed
         return [[float(x) for x in vec] for vec in embed(texts)]
-
-    def _generate_fallback_vectors(self, texts: list[str]) -> list[list[float]]:
-        """Deterministic pseudo-embedding for testing environments without ONNX/C-libs."""
-        import hashlib
-        import math
-
-        results: list[list[float]] = []
-        for text in texts:
-            seed = hashlib.sha256(text.encode("utf-8")).digest()
-            vec = []
-            for i in range(self.dimension):
-                byte_val = seed[i % len(seed)]
-                val = (byte_val / 255.0) * 2.0 - 1.0 + (i * 0.001)
-                vec.append(val)
-            # L2 normalize
-            norm = math.sqrt(sum(x * x for x in vec)) or 1.0
-            results.append([x / norm for x in vec])
-        return results
 
     def embed_texts(self, texts: list[str], *, as_query: bool = False) -> list[list[float]]:
         """Generate dense vector embeddings for a list of strings in batches.
@@ -137,7 +143,7 @@ class EmbeddingGenerator:
                 f"Generating embeddings for batch of {len(batch)} items ({i}/{len(texts)})"
             )
 
-            if self.provider == "openai" and hasattr(self, "_openai_client"):
+            if self.provider == "openai":
                 batch_vectors = self._embed_openai_batch(batch)
             else:
                 batch_vectors = self._embed_fastembed_batch(batch, as_query=as_query)

@@ -1,9 +1,12 @@
 """Unit and integration tests for Gold layer vector embeddings and Qdrant operations."""
 
+from unittest.mock import patch
+
 import pytest
 
+from src.config import settings
 from src.processing.chunker import AtaChunker
-from src.vectorstore.embeddings import EmbeddingGenerator
+from src.vectorstore.embeddings import EmbeddingGenerator, EmbeddingUnavailableError
 from src.vectorstore.qdrant_manager import QdrantManager
 
 
@@ -25,6 +28,29 @@ class TestEmbeddings:
         generator = EmbeddingGenerator(provider="fastembed")
         query_vec = generator.embed_query("projeções de inflação")
         assert len(query_vec) == generator.dimension
+
+    def test_unloadable_model_fails_instead_of_substituting_another(self):
+        """Silently swapping in a different model would degrade search with no error."""
+        with (
+            patch("fastembed.TextEmbedding", side_effect=RuntimeError("modelo inexistente")),
+            pytest.raises(EmbeddingUnavailableError, match="nao-existe/modelo"),
+        ):
+            EmbeddingGenerator(provider="fastembed", model_name="nao-existe/modelo")
+
+    def test_openai_provider_without_key_fails_instead_of_switching(self, monkeypatch):
+        """Asking for OpenAI and silently getting FastEmbed hides a config error."""
+        monkeypatch.setattr(settings, "OPENAI_API_KEY", None)
+
+        with pytest.raises(EmbeddingUnavailableError, match="OPENAI_API_KEY"):
+            EmbeddingGenerator(provider="openai")
+
+    def test_embedding_without_a_loaded_model_raises(self):
+        """No model must mean no vectors -- never pseudo-vectors derived from a hash."""
+        generator = EmbeddingGenerator(provider="fastembed")
+        generator._model = None
+
+        with pytest.raises(EmbeddingUnavailableError):
+            generator.embed_texts(["texto de uma ata"])
 
     def test_query_and_passage_take_distinct_fastembed_hooks(self):
         """Retrieval is asymmetric: prefix-aware models need the query/passage split."""

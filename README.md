@@ -103,6 +103,7 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
    - O MiniLM é multilingual, mas treinado para similaridade simétrica de paráfrase: erra 3 perguntas que os outros acertam. "Multilingual" sozinho não substitui "treinado para busca".
    - Modelos da família e5 exigem os prefixos `query:`/`passage:`. `EmbeddingGenerator` usa `passage_embed()` ao indexar e `query_embed()` ao buscar, então trocar de modelo é só configuração.
    - Trocar de modelo com largura diferente exige recriar a coleção; `ensure_collection()` levanta erro em vez de deixar o upsert falhar em silêncio.
+   - Se o modelo configurado não carregar, o pipeline **para com erro** em vez de substituí-lo por outro ou gerar vetores sem significado — uma busca ruim tem muitas causas possíveis, e um embedder errado é a mais difícil de diagnosticar.
 
 6. **Observabilidade de LLM/RAG (Arize Phoenix & OpenTelemetry)**:
    - Rastreamento completo de latência, contagem de tokens e métricas de retrieval.

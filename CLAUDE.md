@@ -75,13 +75,11 @@ A busca é assimétrica: `embed_texts()` usa `passage_embed()` e `embed_query()`
 
 O e5-large baixa 2,2 GB no primeiro uso, então a CI sobrescreve `EMBEDDING_MODEL_NAME`/`EMBEDDING_DIMENSION` para o MiniLM pequeno no passo de testes (os testes exercitam encanamento, não qualidade de recuperação). Trocar de modelo com largura diferente exige recriar a coleção do Qdrant — `ensure_collection()` levanta `ValueError` se a dimensão não bater.
 
-### Fallback de embedding: silencioso
+### Embeddings falham alto — não degradam
 
-`EmbeddingGenerator` degrada em cascata sem levantar erro:
-- `openai` sem `OPENAI_API_KEY` → cai para `fastembed`;
-- `fastembed` que falha ao carregar → cai para `_generate_fallback_vectors()`, **vetores pseudo-aleatórios derivados de SHA-256**.
+`EmbeddingGenerator` levanta `EmbeddingUnavailableError` em vez de substituir o modelo ou inventar vetores. Os quatro caminhos: modelo configurado não carrega, pacote `fastembed` ausente, `provider=openai` sem `OPENAI_API_KEY`, cliente OpenAI falha ao iniciar.
 
-Isso é o que faz os testes rodarem sem ONNX/Docker, mas em produção significa que uma falha de carregamento do modelo indexa vetores sem significado semântico, só com um `logger.error`. Se a busca vier com resultados absurdos, **suspeite disso antes de suspeitar do chunking**.
+**Não reintroduza fallback aqui.** A versão anterior trocava em silêncio pelo modelo default (inglês, 384-d — dimensão que às vezes batia, então nada denunciava) e, no limite, gerava vetores pseudo-aleatórios de SHA-256. O único sintoma era busca ruim, que aponta para o chunking em vez da causa real. Os testes não precisam disso: eles injetam um modelo falso direto em `_model`.
 
 Além disso, `ensure_collection()` só verifica se a coleção **existe pelo nome** — não confere a dimensão. Trocar `EMBEDDING_MODEL_NAME`/`EMBEDDING_DIMENSION` exige apagar e recriar a coleção manualmente.
 
