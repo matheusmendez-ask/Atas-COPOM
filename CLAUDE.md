@@ -72,6 +72,7 @@ BCB API ──ingest──> data/bronze/year=YYYY/month=MM/{doc_id}_{short_hash}
 - **`src/ingestion/`** — `bcb_client` (HTTP resiliente) → `collector` (idempotência + escrita Hive) → `schemas` (contratos).
 - **`src/processing/`** — `cleaner` (BeautifulSoup + normalização) → `chunker` (split + enriquecimento) → `schemas`.
 - **`src/vectorstore/`** — `embeddings` (provider abstrato) → `qdrant_manager` (coleção, upsert, busca).
+- **`src/web/`** — interface local (`python -m src.web`, extra `[web]`). `create_app(answerer)` recebe o answerer por injeção, então os testes rodam sem modelo e sem Qdrant. A página é um único HTML sem build; o CSS usa OKLCH com neutros de papel quente e **cor só para estado** — recusa em azul informativo, nunca vermelho, porque recusar é acerto.
 - **`src/generation/`** — `answerer` fecha o loop de RAG: `retrieve()` numera as passagens, `build_messages()` monta o prompt com citações, `generate()` chama o endpoint compatível com OpenAI. **Nada de fornecedor específico no código** — trocar NVIDIA/OpenAI/OpenRouter/Ollama é só `LLM_BASE_URL` + `LLM_MODEL`.
 
 ### Idempotência (o ponto central do projeto)

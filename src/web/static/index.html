@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atas do Copom</title>
+<style>
+/* Paper, not screen: this is read in daylight while checking prose against a
+   source document, so the surface is warm and the ink is warm-black. */
+:root {
+  --paper:      oklch(98.4% 0.006 85);
+  --paper-sunk: oklch(96.2% 0.008 82);
+  --raised:     oklch(99.4% 0.003 85);
+  --ink:        oklch(24% 0.014 68);
+  --ink-soft:   oklch(46% 0.012 72);
+  --ink-faint:  oklch(62% 0.010 76);
+  --rule:       oklch(89.5% 0.008 80);
+  --rule-firm:  oklch(82% 0.010 78);
+
+  /* One accent, for interaction and citation only. Never decoration. */
+  --accent:      oklch(51% 0.132 41);
+  --accent-weak: oklch(94% 0.030 45);
+
+  /* Refusal is a correct outcome, so it is informational, never alarming.
+     Red is reserved for things the operator must fix. */
+  --declined:      oklch(48% 0.056 248);
+  --declined-weak: oklch(95.5% 0.018 248);
+  --fault:         oklch(49% 0.145 27);
+  --fault-weak:    oklch(95.5% 0.028 27);
+
+  --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --doc: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+
+  --step--1: 0.8125rem;
+  --step-0:  0.9375rem;
+  --step-1:  1.125rem;
+  --step-2:  1.375rem;
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: var(--step-0)/1.55 var(--ui);
+  -webkit-font-smoothing: antialiased;
+}
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+.shell { max-width: 46rem; margin: 0 auto; padding: 0 1.5rem 6rem; }
+
+/* ---- masthead ---------------------------------------------------------- */
+header { padding: 2.5rem 0 1.75rem; }
+h1 {
+  margin: 0;
+  font-size: var(--step-2);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.sub { margin: 0.35rem 0 0; color: var(--ink-soft); font-size: var(--step--1); }
+.index-state {
+  margin-top: 1.25rem; padding-top: 0.9rem;
+  border-top: 1px solid var(--rule);
+  display: flex; flex-wrap: wrap; gap: 0.35rem 1.5rem;
+  font-size: var(--step--1); color: var(--ink-faint);
+}
+.index-state b { color: var(--ink-soft); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ---- asking ------------------------------------------------------------ */
+form { display: flex; gap: 0.6rem; margin: 0.5rem 0 0; }
+input[type=text] {
+  flex: 1; min-width: 0;
+  padding: 0.7rem 0.85rem;
+  font: var(--step-0) var(--ui);
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--rule-firm);
+  border-radius: 4px;
+  transition: border-color 180ms var(--ease);
+}
+input[type=text]::placeholder { color: var(--ink-faint); }
+input[type=text]:hover { border-color: var(--ink-faint); }
+input[type=text]:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-weak); }
+button[type=submit] {
+  padding: 0.7rem 1.1rem;
+  font: 600 var(--step-0) var(--ui);
+  color: var(--paper); background: var(--ink);
+  border: 1px solid var(--ink); border-radius: 4px; cursor: pointer;
+  transition: background 180ms var(--ease), opacity 180ms var(--ease);
+}
+button[type=submit]:hover:not(:disabled) { background: oklch(34% 0.014 68); }
+button[type=submit]:active:not(:disabled) { background: oklch(20% 0.014 68); }
+button[type=submit]:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ---- first run: teach the interface, including what it refuses ---------- */
+.primer { margin-top: 2.5rem; }
+.primer p { margin: 0 0 0.9rem; color: var(--ink-soft); font-size: var(--step--1); }
+.examples { list-style: none; margin: 0; padding: 0; }
+.examples li + li { border-top: 1px solid var(--rule); }
+.examples button {
+  display: block; width: 100%; text-align: left;
+  padding: 0.7rem 0; background: none; border: 0; cursor: pointer;
+  font: var(--step-0) var(--ui); color: var(--ink);
+  transition: color 160ms var(--ease);
+}
+.examples button:hover { color: var(--accent); }
+.examples .tag {
+  display: block; margin-top: 0.15rem;
+  font-size: var(--step--1); color: var(--ink-faint);
+}
+
+/* ---- exchange ---------------------------------------------------------- */
+.exchange { margin-top: 2.75rem; padding-top: 1.75rem; border-top: 1px solid var(--rule-firm); }
+.asked { margin: 0 0 1.4rem; font-size: var(--step-1); font-weight: 600; letter-spacing: -0.01em; }
+
+.verdict {
+  display: inline-block; margin-bottom: 0.9rem;
+  padding: 0.2rem 0.55rem; border-radius: 3px;
+  font-size: var(--step--1); font-weight: 600; letter-spacing: 0.02em;
+}
+.verdict.grounded { color: var(--accent); background: var(--accent-weak); }
+.verdict.declined { color: var(--declined); background: var(--declined-weak); }
+.verdict.fault    { color: var(--fault);    background: var(--fault-weak); }
+
+.answer { margin: 0; max-width: 68ch; line-height: 1.65; white-space: pre-wrap; }
+.answer.is-declined { color: var(--ink-soft); }
+
+/* Citations are the point of the interface, so they are reachable, not decorative. */
+.cite {
+  font: 600 0.72em var(--ui); vertical-align: 0.35em;
+  padding: 0.1em 0.34em; margin: 0 0.05em;
+  color: var(--accent); background: var(--accent-weak);
+  border: 0; border-radius: 3px; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  transition: background 160ms var(--ease), color 160ms var(--ease);
+}
+.cite:hover { color: var(--paper); background: var(--accent); }
+
+.meta {
+  margin: 1.5rem 0 0; padding-top: 0.75rem; border-top: 1px solid var(--rule);
+  font-size: var(--step--1); color: var(--ink-faint);
+  display: flex; flex-wrap: wrap; gap: 0.3rem 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- sources ----------------------------------------------------------- */
+.sources { margin-top: 2.25rem; }
+.sources h2 {
+  margin: 0 0 0.25rem; font-size: var(--step--1); font-weight: 600;
+  letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-faint);
+}
+.sources > p { margin: 0 0 1.25rem; font-size: var(--step--1); color: var(--ink-faint); }
+
+.source {
+  padding: 1.15rem 0; border-top: 1px solid var(--rule);
+  border-radius: 3px; transition: background 600ms var(--ease);
+}
+.source:last-child { border-bottom: 1px solid var(--rule); }
+.source-head { display: flex; align-items: baseline; gap: 0.7rem; }
+.source-n {
+  flex: none; width: 1.6rem; height: 1.6rem; border-radius: 3px;
+  display: grid; place-items: center;
+  font: 600 var(--step--1) var(--ui); font-variant-numeric: tabular-nums;
+  color: var(--ink-soft); background: var(--paper-sunk);
+  transition: color 200ms var(--ease), background 200ms var(--ease);
+}
+.source-ref { font-weight: 600; }
+.source-score {
+  margin-left: auto; font-size: var(--step--1); color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.source-text {
+  margin: 0.7rem 0 0 2.3rem;
+  font: var(--step-0)/1.7 var(--doc);
+  color: var(--ink-soft); max-width: 64ch;
+}
+/* Flash on citation click: state feedback, and it decays. */
+.source.is-target { background: var(--accent-weak); }
+.source.is-target .source-n { color: var(--paper); background: var(--accent); }
+
+/* ---- loading: skeleton, not a spinner ---------------------------------- */
+.skeleton span {
+  display: block; height: 0.85rem; border-radius: 3px;
+  background: var(--paper-sunk); margin-bottom: 0.7rem;
+  animation: pulse 1.4s var(--ease) infinite;
+}
+.skeleton span:nth-child(2) { width: 92%; animation-delay: 80ms; }
+.skeleton span:nth-child(3) { width: 74%; animation-delay: 160ms; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+@media (max-width: 30rem) {
+  .shell { padding: 0 1.1rem 4rem; }
+  form { flex-direction: column; }
+  .source-text { margin-left: 0; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <h1>Atas do Copom</h1>
+    <p class="sub">Perguntas respondidas apenas com o que está nas atas indexadas, com o trecho de origem à vista.</p>
+    <div class="index-state" id="state"><span>verificando o índice…</span></div>
+  </header>
+
+  <form id="form">
+    <input type="text" id="q" placeholder="O que o Copom decidiu sobre a taxa Selic?"
+           autocomplete="off" required minlength="3" maxlength="500" aria-label="Sua pergunta">
+    <button type="submit" id="go">Perguntar</button>
+  </form>
+
+  <section class="primer" id="primer">
+    <p>Três perguntas para começar. A última não tem resposta nas atas, de propósito.</p>
+    <ul class="examples">
+      <li><button type="button" data-q="Qual foi a decisão do Copom sobre a taxa básica de juros na 280ª reunião?">
+        Qual foi a decisão sobre a taxa básica na 280ª reunião?
+        <span class="tag">resposta direta, com citação da ata</span></button></li>
+      <li><button type="button" data-q="Como os desenvolvimentos da política fiscal impactam a política monetária?">
+        Como a política fiscal impacta a política monetária?
+        <span class="tag">síntese sobre várias reuniões</span></button></li>
+      <li><button type="button" data-q="O que o Copom decidiu sobre a regulação de bitcoin e criptomoedas?">
+        O que o Copom decidiu sobre a regulação de bitcoin?
+        <span class="tag">fora do corpus, deve ser recusada</span></button></li>
+    </ul>
+  </section>
+
+  <main id="out" aria-live="polite"></main>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+fetch("/api/status").then((r) => r.json()).then((s) => {
+  const parts = [
+    `<span><b>${s.indexed_chunks.toLocaleString("pt-BR")}</b> trechos indexados</span>`,
+    `<span>busca <b>${esc(s.embedding_model.split("/").pop())}</b> + BM25</span>`,
+  ];
+  parts.push(s.generation_ready
+    ? `<span>resposta por <b>${esc(s.llm_model.split("/").pop())}</b></span>`
+    : `<span>sem <b>LLM_API_KEY</b>: geração indisponível</span>`);
+  $("#state").innerHTML = parts.join("");
+}).catch(() => { $("#state").innerHTML = "<span>índice fora do ar</span>"; });
+
+document.querySelectorAll(".examples button").forEach((b) =>
+  b.addEventListener("click", () => { $("#q").value = b.dataset.q; submit(); }));
+
+$("#form").addEventListener("submit", (e) => { e.preventDefault(); submit(); });
+
+function renderAnswer(text, count) {
+  // Turn [n] into a control that reveals the passage it points at.
+  return esc(text).replace(/\[(\d+)\]/g, (whole, n) =>
+    (+n >= 1 && +n <= count)
+      ? `<button class="cite" data-n="${n}" title="Ver o trecho ${n}">${n}</button>`
+      : whole);
+}
+
+async function submit() {
+  const question = $("#q").value.trim();
+  if (question.length < 3) return;
+
+  $("#primer").style.display = "none";
+  $("#go").disabled = true;
+  $("#out").innerHTML =
+    `<div class="exchange"><p class="asked">${esc(question)}</p>
+     <div class="skeleton"><span></span><span></span><span></span></div></div>`;
+
+  try {
+    const res = await fetch("/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+
+    const badge = data.refused
+      ? '<span class="verdict declined">Sem resposta nas atas</span>'
+      : '<span class="verdict grounded">Fundamentado</span>';
+
+    const sources = data.sources.map((s) => `
+      <article class="source" id="src-${s.index}">
+        <div class="source-head">
+          <span class="source-n">${s.index}</span>
+          <span class="source-ref">Reunião ${s.nro_reuniao}</span>
+          <span>${esc(s.data_publicacao)}</span>
+          <span class="source-score">${s.score.toFixed(3)}</span>
+        </div>
+        <p class="source-text">${esc(s.text)}</p>
+      </article>`).join("");
+
+    $("#out").innerHTML = `
+      <div class="exchange">
+        <p class="asked">${esc(data.question)}</p>
+        ${badge}
+        <p class="answer${data.refused ? " is-declined" : ""}">${renderAnswer(data.answer, data.sources.length)}</p>
+        <div class="meta">
+          <span>${esc(data.model)}</span>
+          <span>${data.total_tokens} tokens</span>
+          <span>${data.elapsed_seconds}s</span>
+        </div>
+        ${data.sources.length ? `<section class="sources">
+          <h2>Trechos consultados</h2>
+          <p>${data.refused
+              ? "Recuperados, mas nenhum responde à pergunta."
+              : "A resposta acima não pode afirmar nada que não esteja aqui."}</p>
+          ${sources}</section>` : ""}
+      </div>`;
+
+    document.querySelectorAll(".cite").forEach((c) => c.addEventListener("click", () => {
+      const el = $(`#src-${c.dataset.n}`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("is-target");
+      setTimeout(() => el.classList.remove("is-target"), 1600);
+    }));
+  } catch (err) {
+    $("#out").innerHTML = `
+      <div class="exchange">
+        <p class="asked">${esc(question)}</p>
+        <span class="verdict fault">Falhou</span>
+        <p class="answer">${esc(err.message)}</p>
+      </div>`;
+  } finally {
+    $("#go").disabled = false;
+  }
+}
+</script>
+</body>
+</html>

@@ -367,7 +367,20 @@ O provedor é configuração, não código — o cliente fala qualquer endpoint 
 | OpenRouter | `https://openrouter.ai/api/v1` | `<publisher>/<model>` |
 | Ollama (local, sem chave) | `http://localhost:11434/v1` | `llama3.1` |
 
-### 6. Busca Semântica & Avaliação de Retrieval (retrieval puro)
+### 6. Interface local
+
+Para quem não vai abrir um terminal:
+
+```bash
+pip install -e ".[web,openai]"
+python -m src.web          # http://localhost:8000
+```
+
+Uma página só, servida por FastAPI, sem build e sem framework de frontend. Ela não esconde o RAG — exibe: a resposta traz as citações `[n]` **clicáveis**, que revelam o trecho exato da ata com reunião, data e score. Quando a pergunta não tem resposta no corpus, isso aparece como **estado explícito** ("Sem resposta nas atas"), tratado visualmente como resultado correto e não como erro, porque é o que é.
+
+O cabeçalho declara o que o índice contém, e a tela inicial sugere três perguntas — a última delas propositalmente fora do corpus, para que a recusa seja a primeira coisa que alguém vê funcionando.
+
+### 7. Busca Semântica & Avaliação de Retrieval (retrieval puro)
 Realize consultas em linguagem natural no Vector Store:
 ```bash
 python -m src.pipeline query "cenário de inflação e taxa Selic" --limit 3
