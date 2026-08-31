@@ -28,6 +28,7 @@ if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 from src.config import settings
+from src.evaluation import load_golden_set, run_evaluation
 from src.generation.answerer import (
     CopomAnswerer,
     GenerationUnavailableError,
@@ -359,6 +360,85 @@ def ask(
         f"[dim]{answer.model} · {answer.total_tokens} tokens · {elapsed:.2f}s · "
         "trace em http://localhost:6006[/dim]"
     )
+
+
+@app.command()
+def evaluate(
+    limit: Annotated[
+        int, typer.Option("--limit", "-k", help="Trechos recuperados por pergunta.")
+    ] = 5,
+    with_generation: Annotated[
+        bool | None,
+        typer.Option(
+            "--with-generation/--retrieval-only",
+            help="Avaliar também a resposta gerada. Padrão: só se houver LLM_API_KEY.",
+        ),
+    ] = None,
+) -> None:
+    """Score retrieval and grounding against the golden set in evaluation/."""
+    golden = load_golden_set()
+    generate = bool(settings.LLM_API_KEY) if with_generation is None else with_generation
+    if generate and not settings.LLM_API_KEY:
+        console.print("[red]--with-generation exige LLM_API_KEY.[/red]")
+        raise typer.Exit(code=1)
+
+    corpus = golden.get("corpus", {})
+    console.print(
+        Panel.fit(
+            f"[bold cyan]📏 Avaliação · {len(golden['questions'])} perguntas · "
+            f"top-{limit}[/bold cyan]\n"
+            f"[dim]gabarito escrito sobre {corpus.get('chunks', '?')} chunks de "
+            f"{len(corpus.get('meetings', []))} reuniões[/dim]"
+        )
+    )
+
+    with tracer.span("copom_rag_evaluation", {"questions": len(golden["questions"])}):
+        report = run_evaluation(CopomAnswerer(), golden, limit=limit, generate=generate)
+
+    detail = Table(title="Por pergunta", show_header=True, header_style="bold magenta")
+    detail.add_column("Pergunta", style="cyan")
+    detail.add_column("Tipo", style="white")
+    detail.add_column("Rank", style="white", justify="right")
+    detail.add_column("Resultado", style="white")
+    for result in report.results:
+        if result.kind == "unanswerable":
+            verdict = (
+                "—" if result.refused is None else ("recusou ✓" if result.refused else "INVENTOU ✗")
+            )
+            rank = "—"
+        else:
+            verdict = "✓" if result.retrieval_ok else "não recuperado ✗"
+            rank = str(result.hit_rank) if result.hit_rank else "—"
+        detail.add_row(result.id, result.kind, rank, verdict)
+    console.print(detail)
+
+    summary = Table(title="Métricas", show_header=True, header_style="bold magenta")
+    summary.add_column("Métrica", style="cyan")
+    summary.add_column("Valor", style="green", justify="right")
+    summary.add_row("hit@1", f"{report.hit_at(1):.0%}")
+    summary.add_row("hit@3", f"{report.hit_at(3):.0%}")
+    summary.add_row(f"hit@{limit}", f"{report.hit_at(limit):.0%}")
+    summary.add_row("MRR", f"{report.mrr:.3f}")
+    summary.add_row(
+        "[dim]hit@1 de um recuperador aleatório[/dim]", f"{report.random_hit1_baseline:.1%}"
+    )
+    if report.provenance_accuracy is not None:
+        summary.add_row("Reunião esperada recuperada", f"{report.provenance_accuracy:.0%}")
+    if generate:
+        for label, value in (
+            ("Fatos esperados na resposta", report.facts_accuracy),
+            ("Citações dentro da faixa", report.citation_validity),
+            ("Recusa nas armadilhas", report.refusal_rate),
+        ):
+            if value is not None:
+                summary.add_row(label, f"{value:.0%}")
+    console.print(summary)
+
+    if not generate:
+        console.print(
+            "[dim]Só recuperação. Defina LLM_API_KEY (e use --with-generation) para "
+            "avaliar fundamentação, citações e recusa.[/dim]"
+        )
 
 
 if __name__ == "__main__":

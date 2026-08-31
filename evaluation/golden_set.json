@@ -1,0 +1,307 @@
+{
+  "schema_version": 1,
+  "description": "Golden set de avaliacao de RAG sobre atas do Copom. Rotulos ancorados em trechos textuais (nao em chunk_id) para sobreviver a mudancas de CHUNK_SIZE e de modelo de embedding.",
+  "method": "Perguntas escritas a partir da leitura das atas reais. Cada ancora foi verificada programaticamente contra o corpus antes de ser gravada: as answerable precisam existir, as unanswerable precisam estar ausentes. 'random_hit1_baseline' e a fracao do corpus que casa com a ancora, ou seja, o hit@1 que um recuperador aleatorio obteria - um placar so significa algo bem acima dele.",
+  "caveat": "Conjunto pequeno e de autor unico: mede concordancia com a leitura de quem o escreveu, nao verdade independente. Para endurecer: mais perguntas, segundo anotador, e perguntas multi-ata.",
+  "corpus": {
+    "meetings": [
+      270,
+      271,
+      272,
+      273,
+      274,
+      275,
+      276,
+      277,
+      278,
+      279,
+      280
+    ],
+    "chunks": 66,
+    "chunk_size": 800,
+    "chunk_overlap": 100
+  },
+  "questions": [
+    {
+      "id": "selic-280-reducao",
+      "question": "Qual foi a decisão do Copom sobre a taxa básica de juros na 280ª reunião?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "reduzir a taxa basica de juros para 14,00%"
+      ],
+      "authoring": {
+        "matching_chunks": 1,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0152,
+        "meetings": [
+          280
+        ]
+      },
+      "expected_meeting": 280,
+      "answer_must_contain": [
+        "14,00"
+      ]
+    },
+    {
+      "id": "selic-276-manutencao",
+      "question": "Em quanto o Copom manteve a taxa básica de juros na reunião 276?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "manter a taxa basica de juros em 15,00%"
+      ],
+      "authoring": {
+        "matching_chunks": 5,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0758,
+        "meetings": [
+          272,
+          273,
+          274,
+          275,
+          276
+        ]
+      },
+      "expected_meeting": 276,
+      "answer_must_contain": [
+        "15,00"
+      ]
+    },
+    {
+      "id": "focus-280",
+      "question": "Segundo a ata da 280ª reunião, quais as expectativas de inflação do Focus para 2026 e 2027?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "5,0% e 4,2%"
+      ],
+      "authoring": {
+        "matching_chunks": 1,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0152,
+        "meetings": [
+          280
+        ]
+      },
+      "expected_meeting": 280,
+      "answer_must_contain": [
+        "5,0",
+        "4,2"
+      ]
+    },
+    {
+      "id": "focus-278",
+      "question": "Na ata da 278ª reunião, em quanto estavam as expectativas do Focus para 2026 e 2027?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "4,9% e 4,0%"
+      ],
+      "authoring": {
+        "matching_chunks": 1,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0152,
+        "meetings": [
+          278
+        ]
+      },
+      "expected_meeting": 278,
+      "answer_must_contain": [
+        "4,9",
+        "4,0"
+      ]
+    },
+    {
+      "id": "focus-270",
+      "question": "Na ata da 270ª reunião, quais eram as expectativas do Focus para 2025 e 2026?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "5,5% e 4,5%"
+      ],
+      "authoring": {
+        "matching_chunks": 1,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0152,
+        "meetings": [
+          270
+        ]
+      },
+      "expected_meeting": 270,
+      "answer_must_contain": [
+        "5,5",
+        "4,5"
+      ]
+    },
+    {
+      "id": "tarifas-eua",
+      "question": "O que o Copom disse sobre as tarifas comerciais impostas pelos EUA ao Brasil?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "tarifas comerciais"
+      ],
+      "authoring": {
+        "matching_chunks": 3,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0455,
+        "meetings": [
+          272,
+          273
+        ]
+      }
+    },
+    {
+      "id": "politica-fiscal",
+      "question": "Como os desenvolvimentos da política fiscal impactam a política monetária?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "politica fiscal impactam a politica monetaria"
+      ],
+      "authoring": {
+        "matching_chunks": 3,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0455,
+        "meetings": [
+          270,
+          271,
+          272
+        ]
+      }
+    },
+    {
+      "id": "mercado-trabalho-dinamico",
+      "question": "Em que momento o Copom afirmou que o mercado de trabalho segue dinâmico?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "mercado de trabalho segue dinamico"
+      ],
+      "authoring": {
+        "matching_chunks": 1,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0152,
+        "meetings": [
+          272
+        ]
+      }
+    },
+    {
+      "id": "ambiente-externo-incerto",
+      "question": "O Copom descreveu o ambiente externo como incerto em quais atas?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "ambiente externo permanece incerto"
+      ],
+      "authoring": {
+        "matching_chunks": 3,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0455,
+        "meetings": [
+          278,
+          279,
+          280
+        ]
+      }
+    },
+    {
+      "id": "concessoes-credito",
+      "question": "O que as atas dizem sobre as concessões de crédito?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "concessoes de credito"
+      ],
+      "authoring": {
+        "matching_chunks": 3,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0455,
+        "meetings": [
+          270,
+          271,
+          272
+        ]
+      }
+    },
+    {
+      "id": "moderacao-atividade",
+      "question": "O Copom observou moderação gradual da atividade econômica?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "moderacao gradual da atividade"
+      ],
+      "authoring": {
+        "matching_chunks": 4,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0606,
+        "meetings": [
+          273,
+          274,
+          275,
+          280
+        ]
+      }
+    },
+    {
+      "id": "trap-bitcoin",
+      "question": "O que o Copom decidiu sobre a regulação de bitcoin e criptomoedas?",
+      "kind": "unanswerable",
+      "absent_terms": [
+        "bitcoin",
+        "criptomoeda"
+      ],
+      "authoring": {
+        "matching_chunks": 0,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0
+      }
+    },
+    {
+      "id": "trap-reuniao-300",
+      "question": "Qual foi a taxa Selic definida na 300ª reunião do Copom?",
+      "kind": "unanswerable",
+      "absent_terms": [
+        "300a reuniao"
+      ],
+      "authoring": {
+        "matching_chunks": 0,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0
+      }
+    },
+    {
+      "id": "trap-salario-minimo",
+      "question": "Qual a posição do Copom sobre o reajuste do salário mínimo?",
+      "kind": "unanswerable",
+      "absent_terms": [
+        "salario minimo"
+      ],
+      "authoring": {
+        "matching_chunks": 0,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0
+      }
+    },
+    {
+      "id": "trap-open-banking",
+      "question": "O Copom aprovou alguma mudança nas regras do open banking?",
+      "kind": "unanswerable",
+      "absent_terms": [
+        "open banking",
+        "open finance"
+      ],
+      "authoring": {
+        "matching_chunks": 0,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0
+      }
+    },
+    {
+      "id": "trap-concurso",
+      "question": "Quantos servidores o Banco Central contratou por concurso público?",
+      "kind": "unanswerable",
+      "absent_terms": [
+        "concurso publico",
+        "contratacao de servidores"
+      ],
+      "authoring": {
+        "matching_chunks": 0,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0
+      }
+    }
+  ]
+}

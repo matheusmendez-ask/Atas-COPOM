@@ -31,6 +31,12 @@ python -m src.pipeline query "cenário de inflação" --limit 3 --year 2026 --me
 python -m src.pipeline ask "por que o Copom manteve a Selic?" --limit 5
 ```
 
+```bash
+python -m src.pipeline evaluate --limit 5   # mede hit@k/MRR contra evaluation/golden_set.json
+```
+
+**Antes de mexer em chunking, embeddings ou prompt, rode o `evaluate` e anote o número.** Estado conhecido em 2026-08-31: hit@1 27%, hit@5 45%, MRR 0,341, contra baseline aleatório de 3,6%. O modo de falha dominante é recuperar o tópico certo do **documento errado**: `nro_reuniao` está no payload do Qdrant mas não no texto embutido, e as atas são formulaicas demais para os vetores se distinguirem. Ancore o gabarito em frases, nunca em `chunk_id`.
+
 `query` é retrieval puro (sem credencial); `ask` fecha o loop de RAG e é **o único comando que exige credencial** (`LLM_API_KEY` + extra `pip install -e ".[openai]"`). Quando a resposta sair ruim, use `query` para ver o que o retrieval de fato trouxe antes de culpar o prompt.
 
 **Antes de commitar:** a CI roda `ruff check` **e** `ruff format --check`. `make lint` só roda o `check` — passar nele não garante CI verde. Rode `make format` também.

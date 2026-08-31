@@ -108,10 +108,33 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
    - Trocar de modelo com largura diferente exige recriar a coleção; `ensure_collection()` levanta erro em vez de deixar o upsert falhar em silêncio.
    - Se o modelo configurado não carregar, o pipeline **para com erro** em vez de substituí-lo por outro ou gerar vetores sem significado — uma busca ruim tem muitas causas possíveis, e um embedder errado é a mais difícil de diagnosticar.
 
-6. **Observabilidade de LLM/RAG (Arize Phoenix & OpenTelemetry)**:
+6. **Avaliação com golden set (o projeto se mede)**:
+   - `evaluation/golden_set.json`: 16 perguntas escritas a partir da leitura das atas — 11 respondíveis e **5 armadilhas**, cujas respostas não existem no corpus e que o sistema precisa recusar.
+   - Rótulos ancorados em **trechos textuais**, não em `chunk_id`: o gabarito sobrevive a mudar `CHUNK_SIZE` ou trocar de modelo de embedding.
+   - Cada âncora foi verificada contra o corpus antes de ser gravada, e o arquivo registra o **`hit@1` que um recuperador aleatório obteria** (média de 3,6%) — um placar só significa algo bem acima dele.
+   - Correção determinística, sem juiz-LLM: um segundo modelo avaliando o primeiro deixaria ambíguo qual dos dois errou, custaria tokens e não seria reproduzível.
+
+   ```bash
+   python -m src.pipeline evaluate --limit 5
+   ```
+
+   **Resultado medido (2026-08-31, 66 chunks de 11 reuniões):**
+
+   | Métrica | Valor |
+   | :--- | ---: |
+   | hit@1 | 27% |
+   | hit@3 | 36% |
+   | hit@5 | 45% |
+   | MRR | 0,341 |
+   | *hit@1 de um recuperador aleatório* | *3,6%* |
+   | Reunião esperada recuperada | 40% |
+
+   O número é ruim, e está publicado porque é verdadeiro. O diagnóstico que a avaliação permitiu: **o sistema recupera o tópico certo do documento errado**. Para "decisão da 280ª reunião", os cinco primeiros resultados são seções de decisão das atas 277, 278, 276, 274 e 279, com scores entre 0,859 e 0,870 — as atas do Copom são formulaicas, e `nro_reuniao` vive no payload do Qdrant mas nunca entra no vetor, então a pergunta não tem contra o que casar. Sem o golden set, esse defeito seria invisível: cada resposta isolada parece plausível.
+
+7. **Observabilidade de LLM/RAG (Arize Phoenix & OpenTelemetry)**:
    - Rastreamento completo de latência, contagem de tokens e métricas de retrieval.
    - Painel web em tempo real em `http://localhost:6006`.
-7. **Infraestrutura como Código & CI/CD**:
+8. **Infraestrutura como Código & CI/CD**:
    - `docker-compose.yml` pré-configurado para Qdrant e Arize Phoenix.
    - Workflow do GitHub Actions para validação com Ruff e Pytest.
 
