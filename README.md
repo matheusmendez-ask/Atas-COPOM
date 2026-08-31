@@ -127,8 +127,9 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
    | :--- | ---: | ---: | ---: | ---: | ---: |
    | Densa, sem contexto no vetor | 14% | 23% | 36% | 0,206 | 50% |
    | Densa, com `embedding_text` | 32% | 50% | 64% | 0,433 | 100% |
-   | **Híbrida (denso + BM25, fusão DBSF)** | **36%** | **59%** | **77%** | **0,508** | **100%** |
-   | *hit@1 de um recuperador aleatório* | *2,6%* | | | | |
+   | Híbrida (denso + BM25, fusão DBSF) | 36% | 59% | 77% | 0,508 | 100% |
+   | **+ chunks de 150 tokens** | **73%** | **86%** | **86%** | **0,795** | 83% |
+   | *hit@1 de um recuperador aleatório* | *0,4%* | | | | |
 
    Duas correções guiadas por medição, cada uma provada contra o gabarito antes de entrar.
 
@@ -143,7 +144,20 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
    | RRF (prefetch ×4) | 32% | 68% | 77% | 0,515 | 83% ↓ |
    | DBSF (prefetch ×10) | 36% | 59% | 77% | 0,508 | 100% |
 
-   **Ressalva:** 22 perguntas, cada uma vale 4,5 pontos percentuais. RRF ganha em hit@3 por duas perguntas; DBSF ganha em hit@1 e proveniência por uma cada. O critério de desempate foi não aceitar regressão em métrica nenhuma, não a soma dos placares.
+   A terceira: **chunks de 150 tokens em vez de 800.** Um número que distingue uma ata das outras quase não move um vetor calculado sobre 800 tokens de prosa formulaica; em 150, ele domina.
+
+   | Chunk / overlap | chunks | baseline | hit@1 | hit@3 | hit@5 | MRR | Prov. |
+   | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+   | 800 / 100 | 66 | 2,5% | 36% | 59% | 77% | 0,508 | 100% |
+   | 400 / 60 | 143 | 1,2% | 50% | 64% | 68% | 0,562 | 50% |
+   | 250 / 40 | 244 | 0,7% | 64% | 77% | 82% | 0,708 | 83% |
+   | **150 / 25** | 403 | 0,4% | **73%** | **86%** | **86%** | **0,795** | 83% |
+
+   Duas checagens tornam essa comparação honesta. **As 22 âncoras foram verificadas em cada tamanho** — nenhuma ficou partida entre chunks, então um placar diferente mede o sistema, não o gabarito. E o **baseline aleatório foi recalculado por corpus**: caiu de 2,5% para 0,4%, ou seja, o problema ficou 6× mais difícil e ainda assim o placar dobrou.
+
+   O custo que a métrica de recuperação não enxerga — cinco passagens de 150 tokens dão ~750 tokens de contexto ao modelo, contra ~4.000 antes — foi medido à parte e **não se materializou**: fatos 5/6, citações 100% e recusa 8/8, idênticos aos de 800 tokens.
+
+   **Ressalvas:** 22 perguntas, cada uma vale 4,5 pontos percentuais. A proveniência regrediu de 100% para 83% (uma pergunta de seis), aceito diante de oito perguntas a mais acertadas no hit@1. O resultado de 400/60 é anômalo e não explicado — proveniência de 50%, pior que 800 no hit@5. E na escolha da fusão, RRF ganha hit@3 por duas perguntas enquanto DBSF ganha hit@1 e proveniência por uma cada; o desempate foi não aceitar regressão em métrica nenhuma, não somar placares.
 
    **Geração, medida com `gemini-3.7-flash` (30 perguntas, 2026-08-31):**
 

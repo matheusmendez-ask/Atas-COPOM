@@ -17,9 +17,9 @@
       279,
       280
     ],
-    "chunks": 66,
-    "chunk_size": 800,
-    "chunk_overlap": 100
+    "chunks": 403,
+    "chunk_size": 150,
+    "chunk_overlap": 25
   },
   "questions": [
     {
@@ -31,8 +31,8 @@
       ],
       "authoring": {
         "matching_chunks": 1,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0152,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0025,
         "meetings": [
           280
         ]
@@ -51,8 +51,8 @@
       ],
       "authoring": {
         "matching_chunks": 5,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0758,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0124,
         "meetings": [
           272,
           273,
@@ -75,8 +75,8 @@
       ],
       "authoring": {
         "matching_chunks": 1,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0152,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0025,
         "meetings": [
           280
         ]
@@ -96,8 +96,8 @@
       ],
       "authoring": {
         "matching_chunks": 1,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0152,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0025,
         "meetings": [
           278
         ]
@@ -117,8 +117,8 @@
       ],
       "authoring": {
         "matching_chunks": 1,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0152,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0025,
         "meetings": [
           270
         ]
@@ -138,8 +138,8 @@
       ],
       "authoring": {
         "matching_chunks": 3,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0455,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0074,
         "meetings": [
           272,
           273
@@ -155,8 +155,8 @@
       ],
       "authoring": {
         "matching_chunks": 3,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0455,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0074,
         "meetings": [
           270,
           271,
@@ -173,8 +173,8 @@
       ],
       "authoring": {
         "matching_chunks": 1,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0152,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0025,
         "meetings": [
           272
         ]
@@ -189,8 +189,8 @@
       ],
       "authoring": {
         "matching_chunks": 3,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0455,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0074,
         "meetings": [
           278,
           279,
@@ -207,8 +207,8 @@
       ],
       "authoring": {
         "matching_chunks": 3,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0455,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0074,
         "meetings": [
           270,
           271,
@@ -225,8 +225,8 @@
       ],
       "authoring": {
         "matching_chunks": 4,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0606,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0099,
         "meetings": [
           273,
           274,
@@ -245,7 +245,7 @@
       ],
       "authoring": {
         "matching_chunks": 0,
-        "corpus_chunks": 66,
+        "corpus_chunks": 403,
         "random_hit1_baseline": 0.0
       }
     },
@@ -258,7 +258,7 @@
       ],
       "authoring": {
         "matching_chunks": 0,
-        "corpus_chunks": 66,
+        "corpus_chunks": 403,
         "random_hit1_baseline": 0.0
       }
     },
@@ -271,7 +271,7 @@
       ],
       "authoring": {
         "matching_chunks": 0,
-        "corpus_chunks": 66,
+        "corpus_chunks": 403,
         "random_hit1_baseline": 0.0
       }
     },
@@ -285,7 +285,7 @@
       ],
       "authoring": {
         "matching_chunks": 0,
-        "corpus_chunks": 66,
+        "corpus_chunks": 403,
         "random_hit1_baseline": 0.0
       }
     },
@@ -299,7 +299,7 @@
       ],
       "authoring": {
         "matching_chunks": 0,
-        "corpus_chunks": 66,
+        "corpus_chunks": 403,
         "random_hit1_baseline": 0.0
       }
     },
@@ -312,8 +312,8 @@
       ],
       "authoring": {
         "matching_chunks": 1,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0152,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0025,
         "meetings": [
           280
         ]
@@ -328,8 +328,8 @@
       ],
       "authoring": {
         "matching_chunks": 1,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0152,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0025,
         "meetings": [
           279
         ]
@@ -344,8 +344,8 @@
       ],
       "authoring": {
         "matching_chunks": 1,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0152,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0025,
         "meetings": [
           278
         ]
@@ -360,8 +360,8 @@
       ],
       "authoring": {
         "matching_chunks": 1,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0152,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0025,
         "meetings": [
           277
         ]
@@ -376,8 +376,8 @@
       ],
       "authoring": {
         "matching_chunks": 1,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0152,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0025,
         "meetings": [
           276
         ]
@@ -392,8 +392,8 @@
       ],
       "authoring": {
         "matching_chunks": 1,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0152,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0025,
         "meetings": [
           275
         ]
@@ -408,8 +408,8 @@
       ],
       "authoring": {
         "matching_chunks": 1,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0152,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0025,
         "meetings": [
           274
         ]
@@ -424,8 +424,8 @@
       ],
       "authoring": {
         "matching_chunks": 1,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0152,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0025,
         "meetings": [
           273
         ]
@@ -440,8 +440,8 @@
       ],
       "authoring": {
         "matching_chunks": 1,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0152,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0025,
         "meetings": [
           273
         ]
@@ -456,8 +456,8 @@
       ],
       "authoring": {
         "matching_chunks": 1,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0152,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0025,
         "meetings": [
           272
         ]
@@ -472,8 +472,8 @@
       ],
       "authoring": {
         "matching_chunks": 1,
-        "corpus_chunks": 66,
-        "random_hit1_baseline": 0.0152,
+        "corpus_chunks": 403,
+        "random_hit1_baseline": 0.0025,
         "meetings": [
           271
         ]
@@ -492,7 +492,7 @@
       ],
       "authoring": {
         "matching_chunks": 0,
-        "corpus_chunks": 66,
+        "corpus_chunks": 403,
         "random_hit1_baseline": 0.0
       }
     },
@@ -505,7 +505,7 @@
       ],
       "authoring": {
         "matching_chunks": 0,
-        "corpus_chunks": 66,
+        "corpus_chunks": 403,
         "random_hit1_baseline": 0.0
       }
     },
@@ -518,7 +518,7 @@
       ],
       "authoring": {
         "matching_chunks": 0,
-        "corpus_chunks": 66,
+        "corpus_chunks": 403,
         "random_hit1_baseline": 0.0
       }
     }

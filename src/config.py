@@ -67,12 +67,21 @@ class Settings(BaseSettings):
 
     # Text Processing & Chunking Configuration
     CHUNK_SIZE: int = Field(
-        default=800,
-        description="Target maximum chunk size in tokens.",
+        default=150,
+        description=(
+            "Target maximum chunk size in tokens. Chosen by measurement: over the golden "
+            "set, 800 -> 150 took hit@1 from 36% to 73% and MRR from 0.508 to 0.795, "
+            "while answer quality stayed put (facts 5/6, citations 100%, refusals 8/8). "
+            "A distinguishing figure buried in 800 tokens barely moves the vector; in 150 "
+            "it dominates. Changing this requires reindexing and rerunning 'evaluate'."
+        ),
     )
     CHUNK_OVERLAP: int = Field(
-        default=100,
-        description="Token overlap between consecutive chunks.",
+        default=25,
+        description=(
+            "Token overlap between consecutive chunks, kept at ~1/6 of CHUNK_SIZE so a "
+            "sentence straddling a boundary still lands whole in one of them."
+        ),
     )
     TOKENIZER_MODEL: str = Field(
         default="cl100k_base",
