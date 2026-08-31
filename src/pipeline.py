@@ -5,7 +5,9 @@ Commands:
   transform  - Sanitize and semantically chunk Bronze data into Silver layer.
   index      - Generate vector embeddings and upsert Silver chunks into Gold (Qdrant).
   run-all    - Execute the full end-to-end lakehouse pipeline with Phoenix tracing.
-  query      - Perform semantic search and retrieval evaluation against the vectorstore.
+  query      - Perform semantic search against the vectorstore (retrieval only).
+  ask        - Answer a question from the indexed minutes, citing the passages used.
+  evaluate   - Score retrieval and grounding against the golden set in evaluation/.
 """
 
 import contextlib

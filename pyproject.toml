@@ -9,7 +9,7 @@ description = "Enterprise COPOM RAG Lakehouse & Data Observability Pipeline"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
-    { name = "Data Engineering Team", email = "data-eng@example.com" }
+    { name = "Matheus Mendez", email = "matheusmendez19@gmail.com" }
 ]
 dependencies = [
     "pydantic>=2.7.0",
