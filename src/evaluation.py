@@ -14,6 +14,7 @@ system to assess the first, and a disagreement would not say which one erred.
 
 import json
 import re
+import time
 import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -194,6 +195,7 @@ def run_evaluation(
     golden: dict[str, Any],
     limit: int = 5,
     generate: bool = False,
+    delay: float = 0.0,
 ) -> EvaluationReport:
     """Run every golden-set question through retrieval, and optionally generation.
 
@@ -202,13 +204,18 @@ def run_evaluation(
         golden: Parsed golden set document.
         limit: Passages to retrieve per question.
         generate: Also grade the generated answer. Requires LLM credentials.
+        delay: Seconds to wait between model calls. Free tiers throttle on a
+            window that outlasts any reasonable per-request backoff, so pacing
+            the run beats retrying inside it.
 
     Returns:
         A report holding per-question outcomes and aggregate metrics.
     """
     report = EvaluationReport(generated=generate)
 
-    for entry in golden.get("questions", []):
+    for position, entry in enumerate(golden.get("questions", [])):
+        if generate and delay and position:
+            time.sleep(delay)
         sources = answerer.retrieve(entry["question"], limit=limit)
         authoring = entry.get("authoring", {})
         result = QuestionResult(

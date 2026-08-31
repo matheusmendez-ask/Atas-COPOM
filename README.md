@@ -115,8 +115,11 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
    - Correção determinística, sem juiz-LLM: um segundo modelo avaliando o primeiro deixaria ambíguo qual dos dois errou, custaria tokens e não seria reproduzível.
 
    ```bash
-   python -m src.pipeline evaluate --limit 5
+   python -m src.pipeline evaluate --limit 5                      # só recuperação, sem credencial
+   python -m src.pipeline evaluate --with-generation --delay 25   # inclui fatos, citações e recusa
    ```
+
+   O `--delay` existe porque free tiers estrangulam rajadas: 30 chamadas seguidas esgotam a cota, e a janela do limite dura mais do que qualquer backoff razoável dentro da requisição.
 
    **Resultado medido (2026-08-31, 22 perguntas respondíveis sobre 66 chunks de 11 reuniões):**
 

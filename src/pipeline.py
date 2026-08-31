@@ -374,6 +374,13 @@ def evaluate(
             help="Avaliar também a resposta gerada. Padrão: só se houver LLM_API_KEY.",
         ),
     ] = None,
+    delay: Annotated[
+        float,
+        typer.Option(
+            "--delay",
+            help="Segundos entre chamadas ao modelo. Free tiers costumam exigir 15-30s.",
+        ),
+    ] = 0.0,
 ) -> None:
     """Score retrieval and grounding against the golden set in evaluation/."""
     golden = load_golden_set()
@@ -393,7 +400,9 @@ def evaluate(
     )
 
     with tracer.span("copom_rag_evaluation", {"questions": len(golden["questions"])}):
-        report = run_evaluation(CopomAnswerer(), golden, limit=limit, generate=generate)
+        report = run_evaluation(
+            CopomAnswerer(), golden, limit=limit, generate=generate, delay=delay
+        )
 
     detail = Table(title="Por pergunta", show_header=True, header_style="bold magenta")
     detail.add_column("Pergunta", style="cyan")
