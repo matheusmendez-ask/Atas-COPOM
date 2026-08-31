@@ -123,13 +123,29 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
 
    **Recuperação medida (2026-08-31, 22 perguntas respondíveis sobre 66 chunks de 11 reuniões):**
 
+   **Medição de referência — Qdrant servidor, 575 chunks de 15 reuniões (266–280), 2026-08-31:**
+
+   | Métrica | Valor |
+   | :--- | ---: |
+   | hit@1 | **68%** |
+   | hit@3 | **86%** |
+   | hit@5 | **86%** |
+   | MRR | **0,765** |
+   | Reunião esperada recuperada | 83% |
+   | *hit@1 de um recuperador aleatório* | *0,4%* |
+
+   Dezenove das 22 perguntas respondíveis vêm em **rank 1** — a distribuição é melhor do que o hit@1 isolado sugere.
+
+   **A evolução abaixo foi medida em Qdrant em memória sobre um corpus menor** (403 chunks, 11 reuniões), porque cada passo precisava ser comparável ao anterior. Os valores servem para comparar configurações entre si, não com a linha acima.
+
    | Configuração | hit@1 | hit@3 | hit@5 | MRR | Proveniência |
    | :--- | ---: | ---: | ---: | ---: | ---: |
    | Densa, sem contexto no vetor | 14% | 23% | 36% | 0,206 | 50% |
    | Densa, com `embedding_text` | 32% | 50% | 64% | 0,433 | 100% |
    | Híbrida (denso + BM25, fusão DBSF) | 36% | 59% | 77% | 0,508 | 100% |
-   | **+ chunks de 150 tokens** | **73%** | **86%** | **86%** | **0,795** | 83% |
-   | *hit@1 de um recuperador aleatório* | *0,4%* | | | | |
+   | + chunks de 150 tokens | 73% | 86% | 86% | 0,795 | 83% |
+
+   A configuração final, remedida contra o servidor com 172 chunks a mais de distratores e quatro reuniões sem pergunta correspondente, perdeu **uma** pergunta no hit@1 (73% → 68%) e manteve hit@3, hit@5 e recusa idênticos. Um teste mais difícil devolvendo quase o mesmo número é o melhor indício de que as comparações em memória eram válidas.
 
    Duas correções guiadas por medição, cada uma provada contra o gabarito antes de entrar.
 
@@ -166,6 +182,8 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
    | Recusa nas armadilhas | **8/8 — 100%** |
    | Citações dentro da faixa | **100%** |
    | Fatos esperados na resposta | 5/6 — 83% |
+
+   Medido contra o índice real, não em memória: a taxa de recusa de 100% não é artefato do ambiente de teste.
 
    **O sistema não alucina.** Nas 8 perguntas cujas respostas não existem no corpus, ele recusou todas, explicitamente: *"Os trechos fornecidos não contêm informações sobre a regulação de bitcoin e criptomoedas."* Nenhuma citação apontou para passagem inexistente.
 

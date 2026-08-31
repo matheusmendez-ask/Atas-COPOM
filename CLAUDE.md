@@ -36,7 +36,9 @@ python -m src.pipeline evaluate --limit 5                      # so recuperacao,
 python -m src.pipeline evaluate --with-generation --delay 25   # inclui fatos, citacoes e recusa
 ```
 
-**Antes de mexer em chunking, embeddings ou prompt, rode o `evaluate` e anote o número.** Estado conhecido em 2026-08-31 (30 perguntas, 22 respondíveis, chunks de 150 tokens): hit@1 73%, hit@3 86%, hit@5 86%, MRR 0,795, proveniência 83%, contra baseline aleatório de 0,42%.
+**Antes de mexer em chunking, embeddings ou prompt, rode o `evaluate` e anote o número.** Estado conhecido em 2026-08-31, medido no **Qdrant servidor** com 575 chunks de 15 reuniões (266–280): hit@1 68%, hit@3 86%, hit@5 86%, MRR 0,765, proveniência 83%, fatos 83%, citações 100%, recusa 8/8. Baseline aleatório 0,4%.
+
+**Números maiores em relatos antigos vieram de Qdrant em memória sobre 403 chunks de 11 reuniões** (hit@1 73%). Servem para comparar configurações entre si, não com o servidor — o corpus real tem 172 chunks a mais de distratores. Ao medir, diga sempre qual corpus usou.
 
 **A busca é híbrida: denso + BM25, fundidos por DBSF no servidor.** A coleção usa vetores NOMEADOS (`dense` + `bm25` esparso com `Modifier.IDF`) — coleções antigas de vetor anônimo são rejeitadas com mensagem explícita. **Não troque para RRF sem medir**: ele parece a escolha principiada (funde por posição, dispensa normalização), mas derruba a proveniência de 100% para 83%, porque promove passagens em que os dois métodos concordam e rebaixa a que só a densa achou. `FUSION_METHOD` e `PREFETCH_MULTIPLIER` estão no topo do `qdrant_manager` com a tabela da medição. Números maiores que estes em relatos antigos vieram do conjunto de 11 perguntas, que era otimista. Ancore o gabarito em frases, nunca em `chunk_id`.
 
