@@ -92,6 +92,19 @@ class TestChunker:
         assert len(first_chunk.metadata.chunk_hash) == 64
         assert first_chunk.metadata.token_count > 0
 
+    def test_embedding_text_carries_document_identity_but_display_text_stays_clean(
+        self, sample_bronze_record, temp_lakehouse_dirs
+    ):
+        """The vector needs to know which meeting the passage came from; the reader doesn't."""
+        chunker = AtaChunker(chunk_size=100, silver_dir=temp_lakehouse_dirs["silver"])
+        chunk = chunker.process_record(sample_bronze_record).chunks[0]
+
+        assert "280a reunião do Copom" in chunk.embedding_text
+        assert "2026-08-11" in chunk.embedding_text
+        assert chunk.embedding_text.endswith(chunk.text)
+        # The prompt already labels each excerpt, so the stored text must not repeat it.
+        assert "reunião do Copom, publicada" not in chunk.text
+
     def test_save_and_load_silver_documents(self, sample_bronze_record, temp_lakehouse_dirs):
         """Test writing to partitioned Silver disk storage and reloading."""
         silver_dir = temp_lakehouse_dirs["silver"]

@@ -99,6 +99,27 @@ class ChunkPayload(BaseModel):
         description="Rich metadata schema for filtering and context reconstruction.",
     )
 
+    @property
+    def embedding_text(self) -> str:
+        """The text actually embedded: the passage prefixed with its document identity.
+
+        Copom minutes are formulaic -- the same sections in near-identical prose every
+        meeting -- so passage vectors from different meetings come out nearly collinear.
+        ``nro_reuniao`` lives in the Qdrant payload, which filters but never embeds,
+        leaving a question like "the 280th meeting" nothing to match on: retrieval
+        returned the right topic from the wrong document.
+
+        Measured on the golden set (11 answerable questions, 66 chunks):
+        hit@1 27% -> 45%, hit@5 45% -> 64%, MRR 0.341 -> 0.491, provenance 40% -> 80%.
+
+        Only the vector carries the prefix; ``text`` stays clean for display and for
+        the answer prompt, which already labels each excerpt with meeting and date.
+        """
+        return (
+            f"Ata da {self.metadata.nro_reuniao}a reunião do Copom, "
+            f"publicada em {self.metadata.data_publicacao}.\n\n{self.text}"
+        )
+
     @classmethod
     def create(
         cls,

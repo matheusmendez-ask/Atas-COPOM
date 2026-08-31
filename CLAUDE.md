@@ -35,7 +35,9 @@ python -m src.pipeline ask "por que o Copom manteve a Selic?" --limit 5
 python -m src.pipeline evaluate --limit 5   # mede hit@k/MRR contra evaluation/golden_set.json
 ```
 
-**Antes de mexer em chunking, embeddings ou prompt, rode o `evaluate` e anote o número.** Estado conhecido em 2026-08-31: hit@1 27%, hit@5 45%, MRR 0,341, contra baseline aleatório de 3,6%. O modo de falha dominante é recuperar o tópico certo do **documento errado**: `nro_reuniao` está no payload do Qdrant mas não no texto embutido, e as atas são formulaicas demais para os vetores se distinguirem. Ancore o gabarito em frases, nunca em `chunk_id`.
+**Antes de mexer em chunking, embeddings ou prompt, rode o `evaluate` e anote o número.** Estado conhecido em 2026-08-31: hit@1 55%, hit@5 73%, MRR 0,591, proveniência 100%, contra baseline aleatório de 3,6%. Ancore o gabarito em frases, nunca em `chunk_id`.
+
+**`ChunkPayload.embedding_text` existe por um motivo medido.** O vetor é calculado sobre o trecho prefixado com "Ata da Nª reunião do Copom, publicada em ...", e não sobre `text` puro. Sem isso o sistema recuperava o tópico certo do **documento errado** (hit@1 27%, proveniência 40%): as atas são formulaicas e `nro_reuniao` só existia no payload, que filtra mas não embute. **Não passe `chunk.text` direto ao embedder** — `upsert_chunks` usa `embedding_text` de propósito. Mudar o prefixo exige reindexar e rerodar o `evaluate`.
 
 `query` é retrieval puro (sem credencial); `ask` fecha o loop de RAG e é **o único comando que exige credencial** (`LLM_API_KEY` + extra `pip install -e ".[openai]"`). Quando a resposta sair ruim, use `query` para ver o que o retrieval de fato trouxe antes de culpar o prompt.
 

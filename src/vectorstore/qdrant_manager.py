@@ -149,7 +149,9 @@ class QdrantManager:
 
         for i in range(0, len(chunks), bs):
             chunk_batch = chunks[i : i + bs]
-            texts = [c.text for c in chunk_batch]
+            # Embed the contextualized form so the vector carries which meeting the
+            # passage came from; the payload below still stores the clean text.
+            texts = [c.embedding_text for c in chunk_batch]
 
             try:
                 # Generate embeddings for current batch
