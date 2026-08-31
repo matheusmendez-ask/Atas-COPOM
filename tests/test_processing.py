@@ -27,6 +27,36 @@ class TestCleaner:
         cleaned = cleaner.clean_html(raw)
         assert cleaned == "O Copom decidiu ã manter a meta."
 
+    def test_strips_trailing_attendance_roster(self):
+        """The closing roster of officials must never reach the index."""
+        cleaner = AtaCleaner()
+        analysis = "<p>" + ("O Copom decidiu manter a taxa Selic. " * 40) + "</p>"
+        raw = f"""
+        <div>
+            {analysis}
+            <p>Presentes:</p>
+            <p>Membros do Copom</p>
+            <p>Fulano de Tal - Presidente</p>
+            <p>Beltrano de Tal Assessor de Imprensa</p>
+        </div>
+        """
+
+        cleaned = cleaner.clean_html(raw)
+
+        assert "taxa Selic" in cleaned
+        assert "Presentes:" not in cleaned
+        assert "Assessor de Imprensa" not in cleaned
+
+    def test_keeps_text_when_roster_marker_appears_early(self):
+        """A marker in the opening lines is not the closing roster; keep everything."""
+        cleaner = AtaCleaner()
+        raw = "<p>Presentes:</p><p>" + ("Analise da conjuntura economica. " * 40) + "</p>"
+
+        cleaned = cleaner.clean_html(raw)
+
+        assert "Presentes:" in cleaned
+        assert "Analise da conjuntura" in cleaned
+
 
 class TestChunker:
     """Test suite for token counting, recursive chunking, and metadata enrichment."""

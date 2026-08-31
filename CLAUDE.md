@@ -75,6 +75,7 @@ Além disso, `ensure_collection()` só verifica se a coleção **existe pelo nom
 
 ### Detalhes que não são óbvios pelo código
 
+- **O rodapé de presença é removido no Silver.** `AtaCleaner.strip_attendance_roster()` corta a partir do marcador `Presentes:` — são ~14% do corpus em nomes/cargos de participantes e uma frase de encerramento idêntica entre atas. Só corta se o marcador estiver após 50% do texto (nas atas amostradas ele nunca aparece antes de 79%); caso contrário loga um aviso e mantém tudo. O Bronze segue com o texto íntegro.
 - `CHUNK_SIZE=800` e `CHUNK_OVERLAP=100` são **tokens, não caracteres**: o `RecursiveCharacterTextSplitter` recebe `length_function=TokenCounter.count` (tiktoken `cl100k_base`, com fallback heurístico de ~4 chars/token).
 - A API do BCB é camelCase (`nroReuniao`, `textoAta`, `dataPublicacao`); os schemas Pydantic usam snake_case com `alias=`. Ao mexer em campos novos, adicione o alias.
 - `BCBClient` converte **429 e 5xx em `BCBClientError`** justamente para que o Tenacity os capture e faça backoff — `raise_for_status()` sozinho não daria retry.

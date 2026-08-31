@@ -38,6 +38,7 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
     ┌─────────────────────────────────────────────────────────────────────┐
     │ 🥈 CAMADA SILVER (Cleaned, Structured & Chunked)                    │
     │  • Sanitização HTML, decodificação de entidades e normalização      │
+    │  • Remoção do rodapé de presença (~14% do corpus, sem valor semântico) │
     │  • Recursive Character Splitting com overlap semântico             │
     │  • Enriquecimento com Metadados & Token Counting (TikToken)         │
     │  • Particionamento Hive: data/silver/year=YYYY/month=MM/            │
@@ -74,7 +75,8 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
    - Validação em tempo de execução com `BronzeAtaRecord`, `ChunkMetadata` e `ChunkPayload`.
    - Conversão segura de tipos e garantia de integridade estrutural.
 3. **Chunking Semântico com Enriquecimento**:
-   - Sanitização de ruídos HTML preservando seções do COPOM (*A) Atualização da conjuntura*, *B) Cenário prospectivo*, etc.).
+   - Sanitização de ruídos HTML preservando as seções do COPOM (*A) Atualização da conjuntura*, *B) Cenários e análise de riscos*, *C) Discussão sobre a condução da política monetária*, *D) Decisão de política monetária*).
+   - **Remoção do rodapé de presença.** Toda ata encerra com a lista de nomes e cargos dos participantes mais uma frase padrão repetida literalmente entre publicações. Medido em 11 reuniões (240–280), isso é **14% do corpus** — texto quase idêntico entre documentos, que só dilui a recuperação. O corte usa o marcador `Presentes:` e só se aplica se ele estiver na segunda metade do documento (nas atas amostradas nunca aparece antes de 79%).
    - Divisão com `RecursiveCharacterTextSplitter` e `tiktoken`, injetando metadados como número da reunião, data, ano, mês, hash e contagem de tokens.
 4. **Idempotência no Vector Store (Qdrant)**:
    - Geração de IDs de ponto vetorial baseada em `UUIDv5` determinístico a partir de `doc_id + chunk_id`.
