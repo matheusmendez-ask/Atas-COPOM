@@ -5,7 +5,8 @@
 [![Qdrant Vector DB](https://img.shields.io/badge/vectorstore-Qdrant-dc2626.svg)](https://qdrant.tech/)
 [![Arize Phoenix](https://img.shields.io/badge/observability-Arize%20Phoenix-fbbf24.svg)](https://phoenix.arize.com/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![Tests](https://img.shields.io/badge/tests-Pytest%20100%25-brightgreen.svg)](https://docs.pytest.org/)
+[![Tests](https://img.shields.io/badge/pytest-46%20passed-brightgreen.svg)](https://docs.pytest.org/)
+[![Coverage](https://img.shields.io/badge/cobertura-88%25-green.svg)](https://docs.pytest.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Uma esteira completa de engenharia de dados e lakehouse vetorial para processamento resiliente de documentos não estruturados (**Atas e Comunicados do COPOM / Banco Central do Brasil**). Construído com arquitetura Medalhão, contratos estritos de dados (Pydantic v2), indexação vetorial idempotente no **Qdrant** e observabilidade de ponta a ponta com **Arize Phoenix (OpenTelemetry)**.
@@ -82,6 +83,8 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
    - Organização estruturada compatível com Data Lakes modernos (`year=YYYY/month=MM/`).
 2. **Contratos de Dados Rígidos (Pydantic v2)**:
    - Validação em tempo de execução com `BronzeAtaRecord`, `ChunkMetadata` e `ChunkPayload`.
+   - **A validação começa na fronteira**: `RawAtaDetail` valida a resposta do endpoint de detalhes antes de qualquer uso, porque é dela que sai todo o texto do pipeline. Atas anteriores a ~2021 trazem `textoAta` nulo (só há PDF) e são rejeitadas com o motivo registrado, em vez de gerarem um documento vazio.
+   - Data de publicação ilegível **levanta erro** em vez de assumir a data de hoje — o que arquivaria o documento na partição errada e o tornaria invisível ao filtro `--year`.
    - Conversão segura de tipos e garantia de integridade estrutural.
 3. **Chunking Semântico com Enriquecimento**:
    - Sanitização de ruídos HTML preservando as seções do COPOM (*A) Atualização da conjuntura*, *B) Cenários e análise de riscos*, *C) Discussão sobre a condução da política monetária*, *D) Decisão de política monetária*).

@@ -71,6 +71,24 @@ class RawAtaDetail(BaseModel):
         description="Full raw HTML or text content of the Copom minutes.",
     )
 
+    @field_validator("texto_ata", mode="before")
+    @classmethod
+    def reject_missing_text(cls, v: Any) -> str:
+        """Meetings older than roughly 2021 publish only a PDF, with no inline text.
+
+        The API returns null for those (and, in other cases, an empty string).
+        Either way there is nothing to clean, chunk or embed, so the payload is
+        rejected here with a reason rather than becoming an empty SilverDocument.
+        Runs in 'before' mode so null reaches this check instead of tripping the
+        type coercion first, which would report only "input should be a string".
+        """
+        if not (isinstance(v, str) and v.strip()):
+            raise ValueError(
+                "textoAta is empty or null: the minutes text is not available from the API "
+                "for this meeting (older publications ship only a PDF)"
+            )
+        return v
+
 
 class BronzeAtaRecord(BaseModel):
     """Canonical contract for raw records stored in the Bronze Data Lakehouse layer."""
@@ -188,13 +206,19 @@ class BronzeAtaRecord(BaseModel):
                     dt = datetime.strptime(pub_date_clean, "%d/%m/%Y")
             else:
                 dt = datetime.strptime(pub_date_clean[:10], "%Y-%m-%d")
-            ano = dt.year
-            mes = dt.month
-        except Exception:
-            # Fallback to current year/month if unparseable
-            now = datetime.now(UTC)
-            ano = now.year
-            mes = now.month
+        except (ValueError, IndexError) as err:
+            # Defaulting to today would file the document under the wrong Hive
+            # partition and set ano/mes wrong, so the --year search filter would
+            # never find it again. Silent misfiling is worse than a failed record:
+            # BronzeCollector.run() counts this one as failed and carries on.
+            raise ValueError(
+                f"Could not parse data_publicacao {data_publicacao!r} for meeting "
+                f"#{nro_reuniao}. Expected YYYY-MM-DD, an ISO timestamp, DD/MM/YYYY "
+                "or YYYY/MM/DD."
+            ) from err
+
+        ano = dt.year
+        mes = dt.month
 
         doc_id = f"copom_{nro_reuniao}"
 

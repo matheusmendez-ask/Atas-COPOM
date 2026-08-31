@@ -12,7 +12,7 @@ from pathlib import Path
 
 from src.config import settings
 from src.ingestion.bcb_client import BCBClient
-from src.ingestion.schemas import BronzeAtaRecord, RawAtaItem
+from src.ingestion.schemas import BronzeAtaRecord, RawAtaDetail, RawAtaItem
 
 logger = logging.getLogger(__name__)
 
@@ -78,24 +78,20 @@ class BronzeCollector:
             logger.warning(f"Could not retrieve meeting #{nro_reuniao} from BCB API.")
             return None
 
-        texto_ata = details.get("textoAta") or ""
-        titulo = details.get("titulo") or f"Reunião #{nro_reuniao}"
-        data_pub = details.get("dataPublicacao") or ""
-        data_ref = details.get("dataReferencia")
-        url_pdf = details.get("urlPdfAta")
-
-        if not texto_ata.strip():
-            logger.warning(f"Meeting #{nro_reuniao} has empty text content.")
-            return None
+        # Validate at the boundary: this payload is the only source of the text the
+        # whole pipeline is built on, so it gets the same contract treatment as the
+        # records we write ourselves. A malformed payload raises here and run()
+        # records it as a failed item with the reason.
+        detail = RawAtaDetail.model_validate(details)
 
         record = BronzeAtaRecord.create(
-            nro_reuniao=nro_reuniao,
-            titulo=titulo,
-            data_publicacao=data_pub,
-            raw_content=texto_ata,
+            nro_reuniao=detail.nro_reuniao,
+            titulo=detail.titulo,
+            data_publicacao=detail.data_publicacao,
+            raw_content=detail.texto_ata,
             source_url=f"{self.client.base_url}/copom/atas_detalhes?nro_reuniao={nro_reuniao}",
-            data_referencia=data_ref,
-            url_pdf=url_pdf,
+            data_referencia=detail.data_referencia,
+            url_pdf=detail.url_pdf_ata,
             metadata={
                 "catalog_item": raw_catalog_item,
                 "api_endpoint": "sitebcb/copom/atas_detalhes",

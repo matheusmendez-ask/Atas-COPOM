@@ -91,6 +91,8 @@ Além disso, `ensure_collection()` só verifica se a coleção **existe pelo nom
 - `QdrantManager.search()` devolve `[]` quando a coleção não existe (com aviso no log), em vez de estourar traceback — `query` e `ask` já tratam resultado vazio com mensagem útil.
 - `CHUNK_SIZE=800` e `CHUNK_OVERLAP=100` são **tokens, não caracteres**: o `RecursiveCharacterTextSplitter` recebe `length_function=TokenCounter.count` (tiktoken `cl100k_base`, com fallback heurístico de ~4 chars/token).
 - A API do BCB é camelCase (`nroReuniao`, `textoAta`, `dataPublicacao`); os schemas Pydantic usam snake_case com `alias=`. Ao mexer em campos novos, adicione o alias.
+- **`RawAtaDetail` valida o payload de detalhes na fronteira** — é dele que sai todo o texto do pipeline. Atas anteriores a ~2021 trazem `textoAta` nulo (só publicaram PDF) e são rejeitadas com motivo; `run()` as conta em `failed` e segue. Verificado ao vivo: reuniões 240–280 passam, 220 e 230 não.
+- **Data de publicação ilegível levanta erro**, não vira "hoje". O fallback antigo arquivava uma ata de 2019 em `year=2026/month=08` e o filtro `--year 2019` nunca mais a encontrava.
 - `BCBClient` converte **429 e 5xx em `BCBClientError`** justamente para que o Tenacity os capture e faça backoff — `raise_for_status()` sozinho não daria retry.
 - `BCB_ODATA_URL` / `fetch_odata_publications()` existem na config e no cliente mas **não são usados** pelo pipeline; o fluxo real usa `sitebcb/copom/atas` e `sitebcb/copom/atas_detalhes`.
 - `src/pipeline.py` reconfigura `stdout`/`stderr` para UTF-8 antes dos imports do projeto (Windows). Mantenha os imports do `src.*` depois desse bloco.

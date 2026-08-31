@@ -6,7 +6,7 @@ import pytest
 
 from src.ingestion.bcb_client import BCBClient, BCBClientError
 from src.ingestion.collector import BronzeCollector
-from src.ingestion.schemas import BronzeAtaRecord, RawAtaItem
+from src.ingestion.schemas import BronzeAtaRecord, RawAtaDetail, RawAtaItem
 
 
 class TestIngestionSchemas:
@@ -34,6 +34,39 @@ class TestIngestionSchemas:
         assert record.mes == 8
         assert len(record.content_hash) == 64
         assert record.short_hash == record.content_hash[:8]
+
+    def test_unparseable_publication_date_fails_instead_of_guessing(self, sample_raw_html):
+        """Guessing today's date would file the document in the wrong Hive partition."""
+        with pytest.raises(ValueError, match="data_publicacao"):
+            BronzeAtaRecord.create(
+                nro_reuniao=280,
+                titulo="280a Reuniao",
+                data_publicacao="data invalida",
+                raw_content=sample_raw_html,
+                source_url="https://example.com/280",
+            )
+
+    @pytest.mark.parametrize("texto_ata", ["   ", "", None])
+    def test_detail_contract_rejects_minutes_without_text(self, texto_ata):
+        """Older meetings ship only a PDF: the API returns null or an empty string."""
+        payload = {
+            "nroReuniao": 230,
+            "titulo": "230a Reuniao",
+            "dataPublicacao": "2020-05-12",
+            "textoAta": texto_ata,
+        }
+
+        with pytest.raises(ValueError, match="textoAta is empty or null"):
+            RawAtaDetail.model_validate(payload)
+
+    def test_detail_contract_parses_the_real_api_shape(self, sample_detail_response):
+        """The camelCase payload from the details endpoint must satisfy the contract."""
+        detail = RawAtaDetail.model_validate(sample_detail_response["conteudo"][0])
+
+        assert detail.nro_reuniao == 280
+        assert detail.data_publicacao == "2026-08-11"
+        assert detail.url_pdf_ata is not None
+        assert "A) Atualização" in detail.texto_ata
 
     def test_invalid_month_validation(self, sample_raw_html):
         """Ensure month validation enforces 1-12 bounds."""
