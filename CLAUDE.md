@@ -63,7 +63,15 @@ Três mecanismos distintos, cada um com uma pegadinha:
 
 Nenhuma etapa é **incremental**: `transform` reprocessa todo o Bronze e `index` re-embeda todos os chunks a cada execução. Idempotente ≠ barato.
 
-### Embeddings: os fallbacks são silenciosos
+### Embeddings: multilingual, assimétrico e com fallback silencioso
+
+O default é `intfloat/multilingual-e5-large` (1024-d). A escolha foi medida, não chutada — `hit@1` sobre 102 chunks de 16 reuniões: e5-large 9/10, `bge-small-en` 9/10, `paraphrase-multilingual-MiniLM-L12-v2` 6/10. **Não troque para o MiniLM**: ele é multilingual, mas treinado para paráfrase simétrica, e erra 3 perguntas que os outros acertam.
+
+A busca é assimétrica: `embed_texts()` usa `passage_embed()` e `embed_query()` usa `query_embed()`. Para modelos e5 é o FastEmbed que injeta os prefixos `query:`/`passage:` aí dentro; para modelos simétricos os dois viram um `embed` comum. **Não unifique os dois caminhos** — foi assim que o retrieval ficava errado antes.
+
+O e5-large baixa 2,2 GB no primeiro uso, então a CI sobrescreve `EMBEDDING_MODEL_NAME`/`EMBEDDING_DIMENSION` para o MiniLM pequeno no passo de testes (os testes exercitam encanamento, não qualidade de recuperação). Trocar de modelo com largura diferente exige recriar a coleção do Qdrant — `ensure_collection()` levanta `ValueError` se a dimensão não bater.
+
+### Fallback de embedding: silencioso
 
 `EmbeddingGenerator` degrada em cascata sem levantar erro:
 - `openai` sem `OPENAI_API_KEY` → cai para `fastembed`;

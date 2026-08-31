@@ -85,12 +85,24 @@ class Settings(BaseSettings):
         description="Embedding provider to use: 'fastembed' (local/free) or 'openai'.",
     )
     EMBEDDING_MODEL_NAME: str = Field(
-        default="BAAI/bge-small-en-v1.5",
-        description="Embedding model name.",
+        default="intfloat/multilingual-e5-large",
+        description=(
+            "Embedding model name. The corpus is entirely in Portuguese and retrieval is "
+            "asymmetric, so the model must be both multilingual and retrieval-trained. "
+            "Benchmarked over 102 chunks from 16 meetings (hit@1 on 10 questions): "
+            "multilingual-e5-large 9/10, BAAI/bge-small-en-v1.5 9/10, "
+            "paraphrase-multilingual-MiniLM-L12-v2 6/10. The MiniLM is multilingual but "
+            "trained for symmetric paraphrase similarity, which costs it 3 questions. "
+            "Costs a 2.2 GB model download on first use."
+        ),
     )
     EMBEDDING_DIMENSION: int = Field(
-        default=384,
-        description="Vector dimension for embeddings (384 for bge-small, 1536 for text-embedding-3-small).",
+        default=1024,
+        description=(
+            "Vector dimension, which must match the model: 1024 for multilingual-e5-large, "
+            "384 for paraphrase-multilingual-MiniLM-L12-v2 and bge-small, 1536 for OpenAI "
+            "text-embedding-3-small. Changing it requires recreating the Qdrant collection."
+        ),
     )
     OPENAI_API_KEY: str | None = Field(
         default=None,

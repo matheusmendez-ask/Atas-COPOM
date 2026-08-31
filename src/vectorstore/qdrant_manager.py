@@ -87,9 +87,27 @@ class QdrantManager:
                 self._create_payload_indexes()
             else:
                 logger.info(f"Collection '{self.collection_name}' already exists.")
+                self._assert_dimension_matches(dim)
         except Exception as err:
             logger.error(f"Error checking or creating collection '{self.collection_name}': {err}")
             raise
+
+    def _assert_dimension_matches(self, expected_dim: int) -> None:
+        """Fail loudly when an existing collection was built for another model.
+
+        Switching ``EMBEDDING_MODEL_NAME`` to a model of a different width would
+        otherwise surface as a batch of failed upserts buried in the summary. The
+        collection has to be dropped and rebuilt, which is a deliberate act.
+        """
+        info = self.client.get_collection(self.collection_name)
+        params = info.config.params.vectors
+        actual_dim = getattr(params, "size", None)
+        if actual_dim is not None and actual_dim != expected_dim:
+            raise ValueError(
+                f"Collection '{self.collection_name}' stores {actual_dim}-dimensional vectors "
+                f"but the configured model produces {expected_dim}. Recreate the collection "
+                f"(or set QDRANT_COLLECTION_NAME to a new one) and reindex."
+            )
 
     def _create_payload_indexes(self) -> None:
         """Create field indexes in Qdrant for optimized metadata filtering."""

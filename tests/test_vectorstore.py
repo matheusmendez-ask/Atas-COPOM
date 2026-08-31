@@ -1,5 +1,7 @@
 """Unit and integration tests for Gold layer vector embeddings and Qdrant operations."""
 
+import pytest
+
 from src.processing.chunker import AtaChunker
 from src.vectorstore.embeddings import EmbeddingGenerator
 from src.vectorstore.qdrant_manager import QdrantManager
@@ -24,6 +26,27 @@ class TestEmbeddings:
         query_vec = generator.embed_query("projeções de inflação")
         assert len(query_vec) == generator.dimension
 
+    def test_query_and_passage_take_distinct_fastembed_hooks(self):
+        """Retrieval is asymmetric: prefix-aware models need the query/passage split."""
+        calls: list[str] = []
+
+        class FakeModel:
+            def query_embed(self, texts, **kwargs):
+                calls.append("query")
+                return [[0.1] * 8 for _ in texts]
+
+            def passage_embed(self, texts, **kwargs):
+                calls.append("passage")
+                return [[0.2] * 8 for _ in texts]
+
+        generator = EmbeddingGenerator(provider="fastembed")
+        generator._model = FakeModel()
+
+        generator.embed_texts(["Trecho de uma ata do Copom."])
+        generator.embed_query("qual foi a decisão sobre a Selic?")
+
+        assert calls == ["passage", "query"]
+
 
 class TestQdrantManager:
     """Test suite for Qdrant vector index management and idempotent upsert."""
@@ -38,6 +61,14 @@ class TestQdrantManager:
         assert id1 == id2
         # Different chunk produces different UUID
         assert id1 != id3
+
+    def test_rejects_collection_built_for_another_model(self, in_memory_qdrant: QdrantManager):
+        """Swapping to a model of another width must fail loudly, not half-index."""
+        in_memory_qdrant.ensure_collection()
+        in_memory_qdrant.embedding_generator.dimension = 8
+
+        with pytest.raises(ValueError, match="Recreate the collection"):
+            in_memory_qdrant.ensure_collection()
 
     def test_in_memory_collection_creation_and_upsert(
         self, in_memory_qdrant: QdrantManager, sample_bronze_record

@@ -48,7 +48,8 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
                                        ▼
     ┌─────────────────────────────────────────────────────────────────────┐
     │ 🥇 CAMADA GOLD VETORIAL (Vectorstore Lakehouse)                     │
-    │  • Embeddings em Lote: FastEmbed (Local ONNX) ou OpenAI             │
+    │  • Embeddings em Lote: FastEmbed multilingual (ONNX) ou OpenAI      │
+    │  • Retrieval assimétrico: prefixos query/passage por modelo         │
     │  • Qdrant Vector DB: Métrica Cosseno, HNSW e Payload Indexing       │
     │  • Idempotência Garantida: UUIDv5 determinístico por Chunk ID       │
     └──────────────────────────────────┬──────────────────────────────────┘
@@ -81,10 +82,24 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
 4. **Idempotência no Vector Store (Qdrant)**:
    - Geração de IDs de ponto vetorial baseada em `UUIDv5` determinístico a partir de `doc_id + chunk_id`.
    - Re-execuções da esteira atualizam os registros sem criar duplicações de vetores.
-5. **Observabilidade de LLM/RAG (Arize Phoenix & OpenTelemetry)**:
+5. **Escolha do modelo de embedding guiada por medição**:
+   - O corpus é 100% em português e a busca é assimétrica (pergunta curta contra passagem longa), então o modelo precisa ser multilingual **e** treinado para retrieval.
+   - Comparação sobre 102 chunks de 16 reuniões, `hit@1` em 10 perguntas reais em português:
+
+   | Modelo | dim | tamanho | hit@1 |
+   | :--- | ---: | ---: | ---: |
+   | `intfloat/multilingual-e5-large` | 1024 | 2,2 GB | **9/10** |
+   | `BAAI/bge-small-en-v1.5` (só inglês) | 384 | 0,13 GB | 9/10 |
+   | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | 384 | 0,22 GB | 6/10 |
+
+   - O MiniLM é multilingual, mas treinado para similaridade simétrica de paráfrase: erra 3 perguntas que os outros acertam. "Multilingual" sozinho não substitui "treinado para busca".
+   - Modelos da família e5 exigem os prefixos `query:`/`passage:`. `EmbeddingGenerator` usa `passage_embed()` ao indexar e `query_embed()` ao buscar, então trocar de modelo é só configuração.
+   - Trocar de modelo com largura diferente exige recriar a coleção; `ensure_collection()` levanta erro em vez de deixar o upsert falhar em silêncio.
+
+6. **Observabilidade de LLM/RAG (Arize Phoenix & OpenTelemetry)**:
    - Rastreamento completo de latência, contagem de tokens e métricas de retrieval.
    - Painel web em tempo real em `http://localhost:6006`.
-6. **Infraestrutura como Código & CI/CD**:
+7. **Infraestrutura como Código & CI/CD**:
    - `docker-compose.yml` pré-configurado para Qdrant e Arize Phoenix.
    - Workflow do GitHub Actions para validação com Ruff e Pytest.
 
@@ -99,7 +114,7 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
 | **Contratos** | `pydantic` v2, `pydantic-settings` | Validação de dados e configurações de ambiente |
 | **Processamento** | `beautifulsoup4`, `langchain-text-splitters`, `tiktoken` | Sanitização HTML, divisão semântica e tokens |
 | **Vector DB** | `qdrant-client` | Armazenamento de vetores e busca semântica |
-| **Embeddings** | `fastembed` (ONNX local) / `openai` | Geração de embeddings vetoriais de alta performance |
+| **Embeddings** | `fastembed` (ONNX local) / `openai` | `intfloat/multilingual-e5-large` — multilingual e treinado para retrieval |
 | **Observabilidade** | `opentelemetry-sdk`, exportador OTLP/HTTP | Traces, spans, latência e monitoramento RAG (o servidor Arize Phoenix roda como container, não como dependência Python) |
 | **CLI & UI** | `typer`, `rich` | Interface de linha de comando elegante |
 | **Testes & Lint** | `pytest`, `pytest-cov`, `ruff` | Qualidade de software e cobertura de código |

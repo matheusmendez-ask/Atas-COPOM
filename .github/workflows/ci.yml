@@ -35,6 +35,12 @@ jobs:
           ruff format --check src/ tests/
 
       - name: Run unit & integration tests with Pytest
+        # The production default (intfloat/multilingual-e5-large) is a 2.2 GB download
+        # that the runner would fetch on every job. These tests exercise wiring, not
+        # retrieval quality, so a small multilingual model is substituted here.
+        env:
+          EMBEDDING_MODEL_NAME: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+          EMBEDDING_DIMENSION: "384"
         run: |
           pytest --cov=src --cov-report=xml --cov-report=term-missing tests/
 

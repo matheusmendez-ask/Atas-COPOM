@@ -80,14 +80,23 @@ class EmbeddingGenerator:
         )
         return [[float(x) for x in item.embedding] for item in response.data]
 
-    def _embed_fastembed_batch(self, texts: list[str]) -> list[list[float]]:
-        """Embed a batch of texts using local FastEmbed ONNX runtime."""
+    def _embed_fastembed_batch(
+        self, texts: list[str], *, as_query: bool = False
+    ) -> list[list[float]]:
+        """Embed a batch of texts using local FastEmbed ONNX runtime.
+
+        Retrieval is asymmetric: a short question is matched against long passages.
+        ``query_embed``/``passage_embed`` are model-specific hooks -- e5-style models
+        require "query: "/"passage: " prefixes, which FastEmbed applies here, while
+        symmetric models treat both as a plain embed. Going through them keeps the
+        choice of model a pure configuration change.
+        """
         if self._model is None:
             # Fallback deterministic vector generator for headless/isolated testing
             return self._generate_fallback_vectors(texts)
 
-        embeddings_generator = self._model.embed(texts)
-        return [[float(x) for x in vec] for vec in embeddings_generator]
+        embed = self._model.query_embed if as_query else self._model.passage_embed
+        return [[float(x) for x in vec] for vec in embed(texts)]
 
     def _generate_fallback_vectors(self, texts: list[str]) -> list[list[float]]:
         """Deterministic pseudo-embedding for testing environments without ONNX/C-libs."""
@@ -107,11 +116,12 @@ class EmbeddingGenerator:
             results.append([x / norm for x in vec])
         return results
 
-    def embed_texts(self, texts: list[str]) -> list[list[float]]:
+    def embed_texts(self, texts: list[str], *, as_query: bool = False) -> list[list[float]]:
         """Generate dense vector embeddings for a list of strings in batches.
 
         Args:
             texts: List of text strings to embed.
+            as_query: Embed as search queries rather than as indexable passages.
 
         Returns:
             List of vector embeddings (list of floats).
@@ -130,7 +140,7 @@ class EmbeddingGenerator:
             if self.provider == "openai" and hasattr(self, "_openai_client"):
                 batch_vectors = self._embed_openai_batch(batch)
             else:
-                batch_vectors = self._embed_fastembed_batch(batch)
+                batch_vectors = self._embed_fastembed_batch(batch, as_query=as_query)
 
             all_vectors.extend(batch_vectors)
 
@@ -138,5 +148,5 @@ class EmbeddingGenerator:
 
     def embed_query(self, query: str) -> list[float]:
         """Generate embedding vector for a single search query."""
-        results = self.embed_texts([query])
+        results = self.embed_texts([query], as_query=True)
         return results[0] if results else []
