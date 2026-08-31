@@ -96,14 +96,19 @@ def transform() -> None:
     console.print(Panel.fit("[bold cyan]🥈 Starting Silver Layer Transformation[/bold cyan]"))
 
     collector = BronzeCollector()
-    records = collector.load_all_records()
+    history = collector.load_all_records()
+    # Bronze keeps every version ever ingested; Silver keys on doc_id alone, so
+    # only the current version of each document may be promoted.
+    records = collector.select_current_versions(history)
+    superseded = len(history) - len(records)
 
     if not records:
         console.print("[yellow]No Bronze records found on disk. Run 'ingest' first.[/yellow]")
         return
 
     with tracer.span(
-        "pipeline_silver_transformation", {"bronze_records_count": len(records)}
+        "pipeline_silver_transformation",
+        {"bronze_records_count": len(records), "superseded_versions": superseded},
     ) as span:
         start_time = time.perf_counter()
         chunker = AtaChunker()
@@ -125,7 +130,8 @@ def transform() -> None:
     table.add_column("Metric", style="cyan")
     table.add_column("Value", style="green")
 
-    table.add_row("Bronze Records Processed", str(len(records)))
+    table.add_row("Bronze Documents Promoted (Current Version)", str(len(records)))
+    table.add_row("Superseded Versions Skipped", str(superseded))
     table.add_row("Silver Documents Created", str(len(silver_docs)))
     table.add_row("Total Chunks Generated", str(total_chunks))
     table.add_row("Total Document Tokens", f"{total_tokens:,}")

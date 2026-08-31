@@ -1,0 +1,88 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Comandos
+
+```bash
+make setup          # cria .venv e instala -e ".[dev]"
+make up / make down # sobe/derruba Qdrant (6333) e Phoenix (6006) via docker compose
+make test           # pytest --cov=src --cov-report=term-missing tests/
+make lint           # ruff check src/ tests/
+make format         # ruff format src/ tests/
+```
+
+Um teste só:
+```bash
+python -m pytest tests/test_ingestion.py::TestIngestionSchemas::test_raw_ata_item_validation
+```
+
+**Não reintroduza `arize-phoenix` nas dependências de runtime.** O código nunca importa `phoenix` — só o exportador OTLP/HTTP; o servidor Phoenix roda como container. Instalar o pacote traz o `arize-phoenix-client`, que registra um plugin pytest (entry point `pytest11` chamado `phoenix`) carregado automaticamente; ele importa `phoenix`, que usa `mappingproxy` como default de dataclass — aceito só a partir do 3.12. Com ele instalado, **no Python 3.11 o pytest nem chega a coletar** (o projeto declara `requires-python = ">=3.11"` e a CI testa 3.11).
+
+Estado medido em 2026-08-31: **24 passed, ~83% de cobertura** (o badge "Pytest 100%" do README não corresponde).
+
+Pipeline (cada etapa roda isolada; o disco é a interface entre elas):
+```bash
+python -m src.pipeline ingest --limit 10
+python -m src.pipeline transform
+python -m src.pipeline index --batch-size 32
+python -m src.pipeline run-all --limit 15
+python -m src.pipeline query "cenário de inflação" --limit 3 --year 2026 --meeting 280
+```
+
+**Antes de commitar:** a CI roda `ruff check` **e** `ruff format --check`. `make lint` só roda o `check` — passar nele não garante CI verde. Rode `make format` também.
+
+**`make <target>` usa o `python` do PATH, não o `.venv`** (só o alvo `setup` usa `VENV_PYTHON`). Com venv ativado tudo bem; sem ativar, `make test` roda no Python global.
+
+## Arquitetura
+
+Lakehouse medalhão em 3 camadas, orquestrado por um CLI Typer (`src/pipeline.py`). Cada etapa lê o estado da anterior **do disco**, não da memória — por isso são idempotentes e re-executáveis isoladamente.
+
+```
+BCB API ──ingest──> data/bronze/year=YYYY/month=MM/{doc_id}_{short_hash}.json
+                    └─ BronzeAtaRecord (raw_content HTML + SHA-256)
+         ──transform─> data/silver/year=YYYY/month=MM/{doc_id}_silver.json
+                    └─ SilverDocument { clean_text, chunks: [ChunkPayload] }
+         ──index────> Qdrant collection `copom_minutes` (cosseno, 384d)
+                    └─ point id = UUIDv5(NAMESPACE_URL, "doc_id:chunk_id")
+```
+
+- **`src/config.py`** — `settings` é um **singleton criado no import** (`Settings()` no fim do módulo). Toda config vem daqui ou de `.env`; nada de env var lida direto no meio do código.
+- **`src/observability/tracer.py`** — `tracer` também é singleton de import, e o construtor chama `trace.set_tracer_provider(...)`, ou seja, **importar `src.pipeline` já inicializa o OpenTelemetry global**. Sem Phoenix rodando ele cai em `ConsoleSpanExporter`; para silenciar, `ENABLE_PHOENIX=false`.
+- **`src/ingestion/`** — `bcb_client` (HTTP resiliente) → `collector` (idempotência + escrita Hive) → `schemas` (contratos).
+- **`src/processing/`** — `cleaner` (BeautifulSoup + normalização) → `chunker` (split + enriquecimento) → `schemas`.
+- **`src/vectorstore/`** — `embeddings` (provider abstrato) → `qdrant_manager` (coleção, upsert, busca).
+
+### Idempotência (o ponto central do projeto)
+
+Três mecanismos distintos, cada um com uma pegadinha:
+
+1. **Bronze — append-only, hash no nome do arquivo.** `content_hash` = SHA-256 do `raw_content`; o arquivo é `{doc_id}_{short_hash}.json`. Conteúdo alterado na origem **gera um arquivo novo em vez de substituir o antigo** — as versões acumulam na partição de propósito (histórico de auditoria), e `load_all_records()` devolve todas elas.
+2. **Promoção Bronze→Silver — versão corrente.** O Silver indexa por `doc_id` (`{doc_id}_silver.json`, sem hash), então só pode receber **um** registro por documento. `BronzeCollector.select_current_versions()` elege o de `ingested_at` mais recente, com desempate por `content_hash` para nunca depender da ordem do filesystem. **Sempre passe o histórico por ele antes de promover** — chamar `load_all_records()` direto reintroduz um bug em que a versão obsoleta vence quando o hash dela ordena depois.
+3. **Gold — UUIDv5 determinístico.** `generate_point_id(doc_id, chunk_id)` garante que reindexar atualiza o ponto em vez de duplicar.
+
+Nenhuma etapa é **incremental**: `transform` reprocessa todo o Bronze e `index` re-embeda todos os chunks a cada execução. Idempotente ≠ barato.
+
+### Embeddings: os fallbacks são silenciosos
+
+`EmbeddingGenerator` degrada em cascata sem levantar erro:
+- `openai` sem `OPENAI_API_KEY` → cai para `fastembed`;
+- `fastembed` que falha ao carregar → cai para `_generate_fallback_vectors()`, **vetores pseudo-aleatórios derivados de SHA-256**.
+
+Isso é o que faz os testes rodarem sem ONNX/Docker, mas em produção significa que uma falha de carregamento do modelo indexa vetores sem significado semântico, só com um `logger.error`. Se a busca vier com resultados absurdos, **suspeite disso antes de suspeitar do chunking**.
+
+Além disso, `ensure_collection()` só verifica se a coleção **existe pelo nome** — não confere a dimensão. Trocar `EMBEDDING_MODEL_NAME`/`EMBEDDING_DIMENSION` exige apagar e recriar a coleção manualmente.
+
+### Detalhes que não são óbvios pelo código
+
+- `CHUNK_SIZE=800` e `CHUNK_OVERLAP=100` são **tokens, não caracteres**: o `RecursiveCharacterTextSplitter` recebe `length_function=TokenCounter.count` (tiktoken `cl100k_base`, com fallback heurístico de ~4 chars/token).
+- A API do BCB é camelCase (`nroReuniao`, `textoAta`, `dataPublicacao`); os schemas Pydantic usam snake_case com `alias=`. Ao mexer em campos novos, adicione o alias.
+- `BCBClient` converte **429 e 5xx em `BCBClientError`** justamente para que o Tenacity os capture e faça backoff — `raise_for_status()` sozinho não daria retry.
+- `BCB_ODATA_URL` / `fetch_odata_publications()` existem na config e no cliente mas **não são usados** pelo pipeline; o fluxo real usa `sitebcb/copom/atas` e `sitebcb/copom/atas_detalhes`.
+- `src/pipeline.py` reconfigura `stdout`/`stderr` para UTF-8 antes dos imports do projeto (Windows). Mantenha os imports do `src.*` depois desse bloco.
+- `run-all` chama `ingest()`, `transform()` e `index()` como funções Python normais, não como subprocessos.
+- `data/bronze` e `data/silver` são gitignored exceto pelos `.gitkeep`.
+
+## Testes
+
+`tests/conftest.py` traz HTML sintético de ata (com as seções A/B/C reais do COPOM), respostas mockadas dos dois endpoints e um `in_memory_qdrant` usando `QdrantClient(location=":memory:")`. **A suíte não precisa de Docker nem de rede** — o `requests` é mockado e o Qdrant é em memória. Se um teste novo exigir serviço externo, é sinal de que o desenho está errado.

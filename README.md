@@ -65,8 +65,10 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
 
 ## ⚡ Principais Recursos de Engenharia
 
-1. **Ingestão Idempotente & Particionamento Hive**:
+1. **Ingestão Idempotente, Versionada & Particionamento Hive**:
    - Cada publicação tem seu hash SHA-256 calculado. Se o arquivo já existir com o mesmo conteúdo, a escrita é evitada com custo zero de I/O.
+   - **O Bronze é append-only.** Quando o BCB retifica uma ata já ingerida, o novo conteúdo gera um novo hash e é gravado ao lado da versão anterior — o histórico nunca é destruído.
+   - Como as camadas seguintes indexam por `doc_id`, `BronzeCollector.select_current_versions()` elege a **versão corrente** (a de ingestão mais recente, com desempate determinístico por hash) antes da promoção para Silver. Sem isso, qual versão sobreviveria dependeria da ordem alfabética do hash no nome do arquivo.
    - Organização estruturada compatível com Data Lakes modernos (`year=YYYY/month=MM/`).
 2. **Contratos de Dados Rígidos (Pydantic v2)**:
    - Validação em tempo de execução com `BronzeAtaRecord`, `ChunkMetadata` e `ChunkPayload`.

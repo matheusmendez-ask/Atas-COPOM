@@ -7,6 +7,7 @@ and writing partitioned Hive JSON files (year=YYYY/month=MM/).
 import json
 import logging
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 
 from src.config import settings
@@ -161,6 +162,54 @@ class BronzeCollector:
             f"Failed: {summary.failed}"
         )
         return summary
+
+    @staticmethod
+    def select_current_versions(records: list[BronzeAtaRecord]) -> list[BronzeAtaRecord]:
+        """Reduce a Bronze history to the single current record per document.
+
+        Bronze is append-only: the content hash is part of the filename, so a
+        publication revised at the source lands next to its previous version
+        instead of replacing it. Downstream layers key on ``doc_id`` alone, so
+        they must be handed exactly one record per document -- the most recently
+        ingested one. ``content_hash`` breaks ties, keeping the choice
+        deterministic rather than dependent on filesystem ordering.
+
+        Args:
+            records: Bronze records, possibly holding several versions of a document.
+
+        Returns:
+            One record per ``doc_id``, ordered by ``doc_id``.
+        """
+
+        def version_key(record: BronzeAtaRecord) -> tuple[datetime, str]:
+            try:
+                ingested_at = datetime.fromisoformat(record.ingested_at)
+            except ValueError:
+                # An unparseable timestamp loses to any well-formed one.
+                logger.warning(
+                    f"Bronze record {record.doc_id} ({record.short_hash}) has an invalid "
+                    f"ingested_at: {record.ingested_at!r}"
+                )
+                ingested_at = datetime.min.replace(tzinfo=UTC)
+            if ingested_at.tzinfo is None:
+                # A naive timestamp cannot be compared against an aware one; the
+                # factory always writes UTC, so assume it for hand-edited files too.
+                ingested_at = ingested_at.replace(tzinfo=UTC)
+            return ingested_at, record.content_hash
+
+        current: dict[str, BronzeAtaRecord] = {}
+        for record in records:
+            incumbent = current.get(record.doc_id)
+            if incumbent is None or version_key(record) > version_key(incumbent):
+                current[record.doc_id] = record
+
+        superseded = len(records) - len(current)
+        if superseded:
+            logger.info(
+                f"Bronze history holds {len(records)} records for {len(current)} documents; "
+                f"{superseded} superseded version(s) will not be promoted to Silver."
+            )
+        return [current[doc_id] for doc_id in sorted(current)]
 
     def list_all_bronze_files(self) -> list[Path]:
         """List all Bronze JSON files in the Hive partition structure."""

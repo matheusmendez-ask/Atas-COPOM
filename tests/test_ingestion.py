@@ -123,3 +123,37 @@ class TestBronzeCollector:
         assert summary_2.total_catalog_items == 1
         assert summary_2.new_ingested == 0
         assert summary_2.skipped_existing == 1
+
+    def test_select_current_versions_prefers_latest_ingestion(self):
+        """A revised publication must win over the stale one it superseded."""
+        meeting_280 = {
+            "nro_reuniao": 280,
+            "titulo": "280a Reuniao",
+            "data_publicacao": "2026-08-11",
+            "source_url": "https://example.com/280",
+        }
+        stale = BronzeAtaRecord.create(
+            raw_content="<p>Versao original da ata, retificada depois pelo BCB. #5</p>",
+            **meeting_280,
+        ).model_copy(update={"ingested_at": "2026-08-11T09:00:00+00:00"})
+        current = BronzeAtaRecord.create(
+            raw_content="<p>Versao retificada pelo BCB. #5</p>",
+            **meeting_280,
+        ).model_copy(update={"ingested_at": "2026-08-25T09:00:00+00:00"})
+        other_doc = BronzeAtaRecord.create(
+            nro_reuniao=279,
+            titulo="279a Reuniao",
+            data_publicacao="2026-06-24",
+            raw_content="<p>Ata da 279a reuniao.</p>",
+            source_url="https://example.com/279",
+        )
+
+        # Precondition of the original defect: the stale version's hash sorts last,
+        # so promoting in filename order would pick exactly the wrong record.
+        assert stale.content_hash > current.content_hash
+
+        selected = BronzeCollector.select_current_versions([stale, current, other_doc])
+
+        # One record per document, and for copom_280 it is the revision.
+        assert [record.doc_id for record in selected] == ["copom_279", "copom_280"]
+        assert selected[1].content_hash == current.content_hash
