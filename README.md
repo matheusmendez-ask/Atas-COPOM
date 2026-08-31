@@ -5,9 +5,17 @@
 [![Qdrant Vector DB](https://img.shields.io/badge/vectorstore-Qdrant-dc2626.svg)](https://qdrant.tech/)
 [![Arize Phoenix](https://img.shields.io/badge/observability-Arize%20Phoenix-fbbf24.svg)](https://phoenix.arize.com/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+<!-- Badge dinâmico da CI: descomente quando o repositório for público.
+     Em repositório privado o endpoint devolve 404 mesmo autenticado, e o proxy
+     de imagens do GitHub (camo) busca sempre de forma anônima, então nenhum
+     badge que dependa de credencial renderiza aqui.
 [![CI](https://github.com/matheusmendez-ask/Atas-COPOM/actions/workflows/ci.yml/badge.svg)](https://github.com/matheusmendez-ask/Atas-COPOM/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/badge/cobertura-85%25-green.svg)](https://github.com/matheusmendez-ask/Atas-COPOM/actions/workflows/ci.yml)
+-->
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**Status em 2026-08-31:** CI verde em Python 3.11 e 3.12 · 71 testes · 85% de cobertura · avaliação de RAG com hit@1 de 68% e recusa de 8/8 nas perguntas-armadilha.
+
+*Valores datados e conferidos à mão. Um badge de CI dinâmico não funciona enquanto o repositório for privado — o endpoint do GitHub devolve 404 mesmo autenticado, e o proxy de imagens busca sempre anonimamente. O badge está pronto, comentado no topo deste arquivo.*
 
 Uma esteira completa de engenharia de dados e lakehouse vetorial para processamento resiliente de documentos não estruturados (**Atas e Comunicados do COPOM / Banco Central do Brasil**). Construído com arquitetura Medalhão, contratos estritos de dados (Pydantic v2), indexação vetorial idempotente no **Qdrant** e observabilidade de ponta a ponta com **Arize Phoenix (OpenTelemetry)**.
 
@@ -218,8 +226,6 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
 | **Geração (RAG)** | `openai` (extra opcional) | Cliente compatível com OpenAI: NVIDIA NIM, OpenRouter, Ollama |
 | **CLI & UI** | `typer`, `rich` | Interface de linha de comando elegante |
 | **Testes & Lint** | `pytest`, `pytest-cov`, `ruff` | Qualidade de software e cobertura de código |
-
-> O badge de CI é dinâmico e reflete o último push. O de cobertura é um valor fixo (85%, 71 testes, 2026-08-31) e vai defasar — a CI publica `coverage.xml` como artefato, então plugar um Codecov resolveria de vez.
 | **Containers** | `docker`, `docker compose` | Infraestrutura local de serviços |
 
 ---
