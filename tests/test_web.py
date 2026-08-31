@@ -1,7 +1,12 @@
 """Tests for the local web interface."""
 
 import pytest
-from fastapi.testclient import TestClient
+
+# O extra [web] e opcional: sem ele estes testes pulam, em vez de derrubar a
+# coleta da suite inteira. A CI instala .[dev,web], entao la eles rodam.
+pytest.importorskip("fastapi", reason='requer o extra opcional: pip install -e ".[web]"')
+
+from fastapi.testclient import TestClient  # noqa: E402
 
 from src.generation.answerer import Answer, GenerationUnavailableError, Source
 from src.web.app import create_app
