@@ -302,6 +302,225 @@
         "corpus_chunks": 66,
         "random_hit1_baseline": 0.0
       }
+    },
+    {
+      "id": "desancoragem-adicional",
+      "question": "O Copom está monitorando risco de desancoragem adicional das expectativas?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "Comite monitora com atencao a desancoragem adicional"
+      ],
+      "authoring": {
+        "matching_chunks": 1,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0152,
+        "meetings": [
+          280
+        ]
+      }
+    },
+    {
+      "id": "trajetorias-alternativas",
+      "question": "O Comitê chegou a debater trajetórias alternativas para a taxa de juros?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "Comite debateu trajetorias alternativas"
+      ],
+      "authoring": {
+        "matching_chunks": 1,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0152,
+        "meetings": [
+          279
+        ]
+      }
+    },
+    {
+      "id": "sequencia-ciclo",
+      "question": "O Copom julgou apropriado dar sequência ao ciclo em curso?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "Comite julgou apropriado dar sequencia ao ciclo"
+      ],
+      "authoring": {
+        "matching_chunks": 1,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0152,
+        "meetings": [
+          278
+        ]
+      }
+    },
+    {
+      "id": "externo-mais-incerto",
+      "question": "O que tornou o ambiente externo mais incerto?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "ambiente externo tornou-se mais incerto"
+      ],
+      "authoring": {
+        "matching_chunks": 1,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0152,
+        "meetings": [
+          277
+        ]
+      }
+    },
+    {
+      "id": "inicio-flexibilizacao",
+      "question": "Sob quais condições o Copom cogitou iniciar a flexibilização da política monetária?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "iniciar a flexibilizacao da politica"
+      ],
+      "authoring": {
+        "matching_chunks": 1,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0152,
+        "meetings": [
+          276
+        ]
+      }
+    },
+    {
+      "id": "pib-moderacao",
+      "question": "O que os dados do PIB indicavam sobre o ritmo de crescimento?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "PIB seguiu indicando moderacao de crescimento"
+      ],
+      "authoring": {
+        "matching_chunks": 1,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0152,
+        "meetings": [
+          275
+        ]
+      }
+    },
+    {
+      "id": "manutencao-nivel-corrente",
+      "question": "Qual era a estratégia do Copom quanto ao nível corrente da taxa de juros?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "a estrategia de manutencao do nivel corrente"
+      ],
+      "authoring": {
+        "matching_chunks": 1,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0152,
+        "meetings": [
+          274
+        ]
+      }
+    },
+    {
+      "id": "interrupcao-ciclo",
+      "question": "Em que momento o Copom optou por interromper o ciclo de elevação de juros?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "Comite optou por interromper o ciclo"
+      ],
+      "authoring": {
+        "matching_chunks": 1,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0152,
+        "meetings": [
+          273
+        ]
+      }
+    },
+    {
+      "id": "reancoragem",
+      "question": "O que o Copom diz sobre a reancoragem das expectativas de inflação?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "Comite avalia que a reancoragem das expectativas"
+      ],
+      "authoring": {
+        "matching_chunks": 1,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0152,
+        "meetings": [
+          273
+        ]
+      }
+    },
+    {
+      "id": "continuacao-interrupcao",
+      "question": "O Copom sinalizou continuidade da interrupção do ciclo?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "antecipa uma continuacao na interrupcao"
+      ],
+      "authoring": {
+        "matching_chunks": 1,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0152,
+        "meetings": [
+          272
+        ]
+      }
+    },
+    {
+      "id": "elevacao-025-271",
+      "question": "De quanto foi a elevação de juros decidida pelo Copom na 271ª reunião?",
+      "kind": "answerable",
+      "must_retrieve_any": [
+        "Comite optou pela elevacao de 0,25 ponto"
+      ],
+      "authoring": {
+        "matching_chunks": 1,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0152,
+        "meetings": [
+          271
+        ]
+      },
+      "expected_meeting": 271,
+      "answer_must_contain": [
+        "0,25"
+      ]
+    },
+    {
+      "id": "trap-previdencia",
+      "question": "Qual a posição do Copom sobre a reforma da previdência?",
+      "kind": "unanswerable",
+      "absent_terms": [
+        "previdencia"
+      ],
+      "authoring": {
+        "matching_chunks": 0,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0
+      }
+    },
+    {
+      "id": "trap-zona-euro",
+      "question": "Qual foi a taxa de juros que o Copom definiu para a zona do euro?",
+      "kind": "unanswerable",
+      "absent_terms": [
+        "zona do euro"
+      ],
+      "authoring": {
+        "matching_chunks": 0,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0
+      }
+    },
+    {
+      "id": "trap-compulsorio",
+      "question": "O Copom alterou a alíquota do depósito compulsório dos bancos?",
+      "kind": "unanswerable",
+      "absent_terms": [
+        "compulsorio"
+      ],
+      "authoring": {
+        "matching_chunks": 0,
+        "corpus_chunks": 66,
+        "random_hit1_baseline": 0.0
+      }
     }
   ]
 }

@@ -109,7 +109,7 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
    - Se o modelo configurado não carregar, o pipeline **para com erro** em vez de substituí-lo por outro ou gerar vetores sem significado — uma busca ruim tem muitas causas possíveis, e um embedder errado é a mais difícil de diagnosticar.
 
 6. **Avaliação com golden set (o projeto se mede)**:
-   - `evaluation/golden_set.json`: 16 perguntas escritas a partir da leitura das atas — 11 respondíveis e **5 armadilhas**, cujas respostas não existem no corpus e que o sistema precisa recusar.
+   - `evaluation/golden_set.json`: 30 perguntas — 22 respondíveis e **8 armadilhas**, cujas respostas não existem no corpus e que o sistema precisa recusar.
    - Rótulos ancorados em **trechos textuais**, não em `chunk_id`: o gabarito sobrevive a mudar `CHUNK_SIZE` ou trocar de modelo de embedding.
    - Cada âncora foi verificada contra o corpus antes de ser gravada, e o arquivo registra o **`hit@1` que um recuperador aleatório obteria** (média de 3,6%) — um placar só significa algo bem acima dele.
    - Correção determinística, sem juiz-LLM: um segundo modelo avaliando o primeiro deixaria ambíguo qual dos dois errou, custaria tokens e não seria reproduzível.
@@ -118,22 +118,22 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
    python -m src.pipeline evaluate --limit 5
    ```
 
-   **Resultado medido (2026-08-31, 66 chunks de 11 reuniões), antes e depois de contextualizar os chunks:**
+   **Resultado medido (2026-08-31, 22 perguntas respondíveis sobre 66 chunks de 11 reuniões):**
 
-   | Métrica | Antes | Depois |
+   | Métrica | Sem contexto no vetor | Com `embedding_text` |
    | :--- | ---: | ---: |
-   | hit@1 | 27% | **55%** |
-   | hit@3 | 36% | **55%** |
-   | hit@5 | 45% | **73%** |
-   | MRR | 0,341 | **0,591** |
-   | Reunião esperada recuperada | 40% | **100%** |
-   | *hit@1 de um recuperador aleatório* | *3,6%* | *3,6%* |
+   | hit@1 | 14% | **32%** |
+   | hit@3 | 23% | **50%** |
+   | hit@5 | 36% | **64%** |
+   | MRR | 0,206 | **0,433** |
+   | Reunião esperada recuperada | 50% | **100%** |
+   | *hit@1 de um recuperador aleatório* | *2,6%* | *2,6%* |
 
-   O primeiro número era ruim e foi publicado assim, porque era verdadeiro. O diagnóstico que só a avaliação permitiu: **o sistema recuperava o tópico certo do documento errado**. Para "decisão da 280ª reunião", os cinco primeiros resultados eram seções de decisão das atas 277, 278, 276, 274 e 279, com scores entre 0,859 e 0,870 — as atas do Copom são formulaicas, e `nro_reuniao` vivia no payload do Qdrant mas nunca entrava no vetor, então a pergunta não tinha contra o que casar.
+   Os números estão publicados sem maquiagem: **o sistema ainda erra a passagem certa em dois terços das perguntas no top-1**. O que a avaliação já permitiu provar é que contextualizar o vetor praticamente dobra todas as métricas.
 
-   A correção é `ChunkPayload.embedding_text`: o vetor passa a ser calculado sobre o trecho prefixado com a identidade do documento ("Ata da 280ª reunião do Copom, publicada em 2026-08-11"), enquanto o texto exibido continua limpo. Isoladamente cada resultado antigo parecia plausível — sem o golden set, esse defeito seguiria invisível.
+   O diagnóstico que só a medição tornou visível: o sistema recuperava **o tópico certo do documento errado**. Para "decisão da 280ª reunião", os cinco primeiros resultados eram seções de decisão das atas 277, 278, 276, 274 e 279, com scores entre 0,859 e 0,870 — as atas do Copom são formulaicas, e `nro_reuniao` vivia no payload do Qdrant, que filtra mas não embute. A correção é `ChunkPayload.embedding_text`: o vetor passa a ser calculado sobre o trecho prefixado com a identidade do documento, enquanto o texto exibido continua limpo.
 
-   **Ressalva:** são 11 perguntas respondíveis, então cada uma vale 9 pontos percentuais. O salto de 27% para 55% são três perguntas, e a proveniência de 40% para 100% são três de cinco; diferenças de uma única pergunta, porém, são ruído.
+   **O tamanho do conjunto importa, e há evidência disso aqui.** A primeira versão tinha 11 perguntas respondíveis e indicava hit@1 de 55%. Ao dobrar para 22 — com perguntas mineradas mecanicamente do corpus, não escolhidas a dedo — o mesmo sistema mede 32%. O conjunto pequeno era otimista; o maior é o número em que se pode confiar. Mesmo assim, cada pergunta ainda vale 4,5 pontos percentuais.
 
 7. **Observabilidade de LLM/RAG (Arize Phoenix & OpenTelemetry)**:
    - Rastreamento completo de latência, contagem de tokens e métricas de retrieval.
