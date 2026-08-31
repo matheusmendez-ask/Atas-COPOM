@@ -47,7 +47,11 @@ class PipelineTracer:
         resource = Resource.create(
             {
                 "service.name": self.project_name,
-                "project.name": self.project_name,
+                # Phoenix routes traces by this exact key. The plain "project.name"
+                # used before was ignored without complaint, so every trace landed
+                # in Phoenix's "default" project and PHOENIX_PROJECT_NAME did
+                # nothing -- harmless with one service, a mess with several.
+                "openinference.project.name": self.project_name,
                 "environment": "lakehouse-production",
             }
         )

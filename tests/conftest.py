@@ -1,8 +1,16 @@
 """Pytest fixtures for unit and integration testing."""
 
-from pathlib import Path
+import os
 
-import pytest
+# Must run before anything imports src: the tracer is a module-level singleton
+# built at import time, and with Phoenix enabled the suite exported real spans to
+# whatever collector was listening. Test runs polluted the telemetry of a running
+# Phoenix with names like "test_operation".
+os.environ["ENABLE_PHOENIX"] = "false"
+
+from pathlib import Path  # noqa: E402
+
+import pytest  # noqa: E402
 
 from src.ingestion.schemas import BronzeAtaRecord
 from src.vectorstore.embeddings import EmbeddingGenerator

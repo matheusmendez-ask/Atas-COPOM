@@ -69,7 +69,10 @@ def ingest(
         Panel.fit(f"[bold cyan]🥉 Starting Bronze Ingestion (Limit: {limit})[/bold cyan]")
     )
 
-    with tracer.span("pipeline_bronze_ingestion", {"requested_limit": limit}) as span:
+    with tracer.span(
+        "pipeline_bronze_ingestion",
+        {"openinference.span.kind": "CHAIN", "requested_limit": limit},
+    ) as span:
         start_time = time.perf_counter()
         collector = BronzeCollector()
         summary = collector.run(limit=limit)
@@ -116,7 +119,11 @@ def transform() -> None:
 
     with tracer.span(
         "pipeline_silver_transformation",
-        {"bronze_records_count": len(records), "superseded_versions": superseded},
+        {
+            "openinference.span.kind": "CHAIN",
+            "bronze_records_count": len(records),
+            "superseded_versions": superseded,
+        },
     ) as span:
         start_time = time.perf_counter()
         chunker = AtaChunker()
@@ -173,7 +180,10 @@ def index(
     for doc in silver_docs:
         all_chunks.extend(doc.chunks)
 
-    with tracer.span("pipeline_gold_indexing", {"total_chunks": len(all_chunks)}) as span:
+    with tracer.span(
+        "pipeline_gold_indexing",
+        {"openinference.span.kind": "EMBEDDING", "total_chunks": len(all_chunks)},
+    ) as span:
         start_time = time.perf_counter()
         qdrant = QdrantManager()
         upsert_summary = qdrant.upsert_chunks(all_chunks, batch_size=batch_size)
@@ -220,7 +230,8 @@ def run_all(
     )
 
     with tracer.span(
-        "copom_lakehouse_pipeline_full_run", {"limit": limit, "batch_size": batch_size}
+        "copom_lakehouse_pipeline_full_run",
+        {"openinference.span.kind": "CHAIN", "limit": limit, "batch_size": batch_size},
     ):
         # Step 1: Bronze Ingestion
         console.print("\n[bold]Step 1/3: Ingesting Raw Data (Bronze Layer)...[/bold]")
@@ -322,7 +333,10 @@ def ask(
     ) as chain_span:
         start_time = time.perf_counter()
 
-        with tracer.span("copom_rag_retrieval", {"top_k": limit}) as retrieval_span:
+        with tracer.span(
+            "copom_rag_retrieval",
+            {"openinference.span.kind": "RETRIEVER", "top_k": limit},
+        ) as retrieval_span:
             sources = answerer.retrieve(
                 question, limit=limit, filter_year=year, filter_meeting=meeting
             )
@@ -332,7 +346,10 @@ def ask(
             console.print("[yellow]Nenhum trecho encontrado. Rode 'index' primeiro.[/yellow]")
             return
 
-        with tracer.span("copom_rag_generation", {"llm.provider": settings.LLM_BASE_URL}) as gen:
+        with tracer.span(
+            "copom_rag_generation",
+            {"openinference.span.kind": "LLM", "llm.provider": settings.LLM_BASE_URL},
+        ) as gen:
             try:
                 answer = answerer.generate(question, sources)
             except GenerationUnavailableError as err:
@@ -401,7 +418,10 @@ def evaluate(
         )
     )
 
-    with tracer.span("copom_rag_evaluation", {"questions": len(golden["questions"])}):
+    with tracer.span(
+        "copom_rag_evaluation",
+        {"openinference.span.kind": "EVALUATOR", "questions": len(golden["questions"])},
+    ):
         report = run_evaluation(
             CopomAnswerer(), golden, limit=limit, generate=generate, delay=delay
         )
