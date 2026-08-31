@@ -62,6 +62,10 @@ class TestQdrantManager:
         # Different chunk produces different UUID
         assert id1 != id3
 
+    def test_search_on_missing_collection_returns_nothing(self, in_memory_qdrant: QdrantManager):
+        """Nothing indexed yet is an ordinary state, not a traceback."""
+        assert in_memory_qdrant.search("qualquer pergunta", limit=3) == []
+
     def test_rejects_collection_built_for_another_model(self, in_memory_qdrant: QdrantManager):
         """Swapping to a model of another width must fail loudly, not half-index."""
         in_memory_qdrant.ensure_collection()

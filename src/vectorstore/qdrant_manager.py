@@ -210,6 +210,15 @@ class QdrantManager:
         Returns:
             List of matching records with score, text, and metadata.
         """
+        if not self.client.collection_exists(self.collection_name):
+            # Nothing indexed yet is an ordinary state, not a crash: both the
+            # 'query' and 'ask' commands already tell the user to run 'index'.
+            logger.warning(
+                f"Collection '{self.collection_name}' does not exist, so the search returns "
+                "nothing. Run the 'index' command, or check QDRANT_COLLECTION_NAME."
+            )
+            return []
+
         query_vector = self.embedding_generator.embed_query(query)
         if not query_vector:
             return []
