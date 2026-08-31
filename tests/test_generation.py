@@ -101,6 +101,48 @@ class TestGeneration:
         assert answer.completion_tokens == 5
         assert client.last_kwargs["model"] == "fake/model"
 
+    def test_rate_limited_call_is_retried(self):
+        """Evaluating the golden set fires many requests fast; 429 must not abort it."""
+
+        class Throttled(Exception):
+            status_code = 429
+
+        class FlakyClient(FakeLLMClient):
+            attempts = 0
+
+            def _create(self, **kwargs):
+                self.attempts += 1
+                if self.attempts == 1:
+                    raise Throttled("Too Many Requests")
+                return super()._create(**kwargs)
+
+        client = FlakyClient(content="respondeu na segunda tentativa [1]")
+        answerer = CopomAnswerer(qdrant=object(), client=client)
+        answerer._complete.retry.wait = lambda *a, **kw: 0  # não dorme no teste
+
+        answer = answerer.generate("pergunta", [make_source()])
+
+        assert client.attempts == 2
+        assert answer.text == "respondeu na segunda tentativa [1]"
+
+    def test_non_retryable_error_is_not_retried(self):
+        """A malformed request or bad key must fail at once instead of burning quota."""
+
+        class BadRequest(Exception):
+            status_code = 400
+
+        class BrokenClient(FakeLLMClient):
+            def _create(self, **kwargs):
+                self.calls += 1
+                raise BadRequest("Bad Request")
+
+        client = BrokenClient()
+        answerer = CopomAnswerer(qdrant=object(), client=client)
+
+        with pytest.raises(BadRequest):
+            answerer.generate("pergunta", [make_source()])
+        assert client.calls == 1
+
     def test_without_retrieved_passages_the_model_is_never_called(self):
         client = FakeLLMClient()
         answerer = CopomAnswerer(qdrant=object(), client=client)

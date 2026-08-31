@@ -103,6 +103,7 @@ class QuestionResult:
     facts_ok: bool | None = None
     citations_ok: bool | None = None
     refused: bool | None = None
+    generation_error: str | None = None
 
     @property
     def retrieval_ok(self) -> bool:
@@ -161,6 +162,11 @@ class EvaluationReport:
         if not graded:
             return None
         return sum(1 for r in graded if getattr(r, attribute)) / len(graded)
+
+    @property
+    def generation_failures(self) -> list[QuestionResult]:
+        """Questions whose model call errored, so their grading is missing, not zero."""
+        return [r for r in self.results if r.generation_error]
 
     @property
     def facts_accuracy(self) -> float | None:
@@ -222,7 +228,14 @@ def run_evaluation(
                 result.meeting_ok = expected_meeting in {s.nro_reuniao for s in sources}
 
         if generate:
-            answer = answerer.generate(entry["question"], sources)
+            try:
+                answer = answerer.generate(entry["question"], sources)
+            except Exception as err:
+                # A quota exhausted halfway through must not discard the retrieval
+                # results already gathered: grade what is gradable and say what broke.
+                result.generation_error = f"{type(err).__name__}: {err}"
+                report.results.append(result)
+                continue
             result.answer = answer.text
             result.citations_ok = citations_within_range(answer.text, len(sources))
             if entry["kind"] == "unanswerable":

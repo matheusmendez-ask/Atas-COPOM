@@ -151,6 +151,32 @@ class TestRunEvaluation:
         assert report.refusal_rate == 0.0
         assert report.citation_validity == 1.0
 
+    def test_generation_failure_keeps_the_retrieval_results(self):
+        """A quota exhausted mid-run must not discard the retrieval work already done."""
+
+        class ThrottledAnswerer(FakeAnswerer):
+            def generate(self, question, sources):
+                raise RuntimeError("Error code: 429 - Too Many Requests")
+
+        answerer = ThrottledAnswerer([make_source(1, "manter a taxa basica em 15,00% a.a.")])
+        golden = {
+            "questions": [
+                {
+                    "id": "selic",
+                    "question": "quanto?",
+                    "kind": "answerable",
+                    "must_retrieve_any": ["manter a taxa basica"],
+                }
+            ]
+        }
+
+        report = run_evaluation(answerer, golden, limit=5, generate=True)
+
+        assert report.hit_at(1) == 1.0, "a recuperacao continua medida"
+        assert len(report.generation_failures) == 1
+        assert "429" in report.generation_failures[0].generation_error
+        assert report.facts_accuracy is None, "sem nota e diferente de nota zero"
+
 
 class TestGoldenSetFile:
     """The shipped golden set must stay well-formed and self-describing."""

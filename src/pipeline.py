@@ -434,6 +434,14 @@ def evaluate(
                 summary.add_row(label, f"{value:.0%}")
     console.print(summary)
 
+    if report.generation_failures:
+        failed = report.generation_failures
+        console.print(
+            f"[yellow]{len(failed)} de {len(report.results)} perguntas ficaram sem nota de "
+            f"geração (as métricas acima são só das que responderam).[/yellow]\n"
+            f"[dim]primeiro erro: {failed[0].generation_error[:140]}[/dim]"
+        )
+
     if not generate:
         console.print(
             "[dim]Só recuperação. Defina LLM_API_KEY (e use --with-generation) para "

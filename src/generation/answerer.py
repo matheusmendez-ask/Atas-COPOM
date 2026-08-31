@@ -10,6 +10,14 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential,
+)
+
 from src.config import settings
 from src.vectorstore.qdrant_manager import QdrantManager
 
@@ -32,6 +40,16 @@ NO_CONTEXT_ANSWER = (
 
 class GenerationUnavailableError(RuntimeError):
     """Raised when answer generation cannot run: no credentials or missing extra."""
+
+
+# Rate limits and transient server faults are worth another attempt; a malformed
+# request or a bad key is not, and retrying those only wastes quota.
+RETRYABLE_STATUS = frozenset({408, 409, 429, 500, 502, 503, 504})
+
+
+def _is_retryable(error: BaseException) -> bool:
+    """Decide by HTTP status, so no provider-specific exception import is needed."""
+    return getattr(error, "status_code", None) in RETRYABLE_STATUS
 
 
 @dataclass
@@ -181,6 +199,25 @@ class CopomAnswerer:
             {"role": "user", "content": user_prompt},
         ]
 
+    @retry(
+        reraise=True,
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=2, min=2, max=30),
+        retry=retry_if_exception(_is_retryable),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+    )
+    def _complete(self, client: Any, messages: list[dict[str, str]]) -> Any:
+        """Call the chat endpoint, backing off through rate limits.
+
+        Evaluating the golden set fires one request per question in quick
+        succession, which is exactly what a free tier throttles.
+        """
+        return client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=self.temperature,
+        )
+
     def generate(self, question: str, sources: list[Source]) -> Answer:
         """Produce an answer grounded in the given passages.
 
@@ -200,11 +237,7 @@ class CopomAnswerer:
             return Answer(question=question, text=NO_CONTEXT_ANSWER, model=self.model)
 
         client = self._get_client()
-        response = client.chat.completions.create(
-            model=self.model,
-            messages=self.build_messages(question, sources),
-            temperature=self.temperature,
-        )
+        response = self._complete(client, self.build_messages(question, sources))
 
         usage = getattr(response, "usage", None)
         return Answer(
