@@ -125,6 +125,32 @@ class Settings(BaseSettings):
         description="Batch size for generating embeddings and upserting vectors.",
     )
 
+    # Answer Generation (RAG) Configuration
+    LLM_BASE_URL: str = Field(
+        default="https://integrate.api.nvidia.com/v1",
+        description=(
+            "OpenAI-compatible chat completions endpoint. Defaults to NVIDIA NIM. "
+            "Point it elsewhere to switch provider without code changes: "
+            "https://api.openai.com/v1, https://openrouter.ai/api/v1, "
+            "or http://localhost:11434/v1 for a local Ollama."
+        ),
+    )
+    LLM_MODEL: str = Field(
+        default="moonshotai/kimi-k3",
+        description="Chat model identifier, as named by the configured endpoint.",
+    )
+    LLM_API_KEY: str | None = Field(
+        default=None,
+        description=(
+            "API key for LLM_BASE_URL (an 'nvapi-...' key for NVIDIA NIM). Answer "
+            "generation fails loudly when unset rather than degrading silently."
+        ),
+    )
+    LLM_TEMPERATURE: float = Field(
+        default=0.2,
+        description="Sampling temperature. Kept low because answers must track the sources.",
+    )
+
     # Observability & Arize Phoenix Configuration
     ENABLE_PHOENIX: bool = Field(
         default=True,

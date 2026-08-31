@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
+from src.generation.answerer import Answer, GenerationUnavailableError, Source
 from src.ingestion.collector import IngestionSummary
 from src.pipeline import app
 from src.processing.schemas import SilverDocument
@@ -98,3 +99,70 @@ class TestPipelineCLI:
             assert "Semantic Search Query" in result.stdout
             assert "Result #1" in result.stdout
             assert "copom_280" in result.stdout
+
+    def test_cli_ask_prints_answer_and_cited_sources(self):
+        """The 'ask' command renders the answer plus the passages behind it."""
+        source = Source(
+            index=1,
+            doc_id="copom_280",
+            chunk_id="copom_280_chunk_001",
+            nro_reuniao=280,
+            titulo="280a Reuniao",
+            data_publicacao="2026-08-11",
+            score=0.87,
+            text="O Copom decidiu manter a Selic.",
+        )
+        answer = Answer(
+            question="por que manteve?",
+            text="O Comitê manteve a taxa por causa do balanço de riscos [1].",
+            sources=[source],
+            model="moonshotai/kimi-k3",
+            prompt_tokens=100,
+            completion_tokens=20,
+        )
+        with (
+            patch("src.pipeline.CopomAnswerer.retrieve", return_value=[source]),
+            patch("src.pipeline.CopomAnswerer.generate", return_value=answer),
+        ):
+            result = runner.invoke(app, ["ask", "por que manteve?", "--limit", "1"])
+
+            assert result.exit_code == 0
+            assert "balanço de riscos" in result.stdout
+            assert "Fontes citadas" in result.stdout
+            assert "#280" in result.stdout
+
+    def test_cli_ask_without_credentials_exits_nonzero(self):
+        """Missing credentials must surface as a failure, not an empty answer."""
+        source = Source(
+            index=1,
+            doc_id="copom_280",
+            chunk_id="copom_280_chunk_001",
+            nro_reuniao=280,
+            titulo="280a Reuniao",
+            data_publicacao="2026-08-11",
+            score=0.87,
+            text="trecho",
+        )
+        with (
+            patch("src.pipeline.CopomAnswerer.retrieve", return_value=[source]),
+            patch(
+                "src.pipeline.CopomAnswerer.generate",
+                side_effect=GenerationUnavailableError("LLM_API_KEY is not set"),
+            ),
+        ):
+            result = runner.invoke(app, ["ask", "pergunta"])
+
+            assert result.exit_code == 1
+            assert "LLM_API_KEY" in result.stdout
+
+    def test_cli_ask_without_matching_passages_skips_generation(self):
+        """No context means no model call and a clear message instead."""
+        with (
+            patch("src.pipeline.CopomAnswerer.retrieve", return_value=[]),
+            patch("src.pipeline.CopomAnswerer.generate") as generate,
+        ):
+            result = runner.invoke(app, ["ask", "pergunta sem contexto"])
+
+            assert result.exit_code == 0
+            assert "Nenhum trecho encontrado" in result.stdout
+            generate.assert_not_called()

@@ -93,5 +93,19 @@ class PipelineTracer:
                 current_span.set_attribute("duration_ms", duration_ms)
 
 
+def set_span_attributes(span: Any, attributes: dict[str, Any]) -> None:
+    """Apply attributes to a span that may be absent when tracing is disabled.
+
+    Attributes computed only after a block runs -- token counts, retrieved
+    documents -- cannot be passed to :meth:`PipelineTracer.span`, so they are
+    set here instead.
+    """
+    if span is None:
+        return
+    for key, value in attributes.items():
+        if value is not None:
+            span.set_attribute(key, value)
+
+
 # Singleton tracer instance
 tracer = PipelineTracer()

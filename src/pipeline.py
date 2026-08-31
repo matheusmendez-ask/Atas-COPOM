@@ -28,8 +28,13 @@ if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 from src.config import settings
+from src.generation.answerer import (
+    CopomAnswerer,
+    GenerationUnavailableError,
+    retrieval_span_attributes,
+)
 from src.ingestion.collector import BronzeCollector
-from src.observability.tracer import tracer
+from src.observability.tracer import set_span_attributes, tracer
 from src.processing.chunker import AtaChunker
 from src.vectorstore.qdrant_manager import QdrantManager
 
@@ -287,6 +292,73 @@ def query(
 
         console.print(table)
         console.print()
+
+
+@app.command()
+def ask(
+    question: Annotated[str, typer.Argument(help="Pergunta em linguagem natural sobre as atas.")],
+    limit: Annotated[
+        int, typer.Option("--limit", "-k", help="Trechos recuperados como contexto.")
+    ] = 5,
+    year: Annotated[
+        int | None, typer.Option("--year", "-y", help="Filtrar por ano de publicação.")
+    ] = None,
+    meeting: Annotated[
+        int | None, typer.Option("--meeting", "-m", help="Filtrar por número da reunião.")
+    ] = None,
+) -> None:
+    """Answer a question from the indexed minutes, citing the passages used."""
+    console.print(Panel.fit(f"[bold cyan]💬 Pergunta: '{question}'[/bold cyan]"))
+
+    answerer = CopomAnswerer()
+
+    # Nested spans mirror the RAG structure so Phoenix separates retrieval
+    # latency from generation latency instead of showing one opaque block.
+    with tracer.span(
+        "copom_rag_ask", {"openinference.span.kind": "CHAIN", "input.value": question}
+    ) as chain_span:
+        start_time = time.perf_counter()
+
+        with tracer.span("copom_rag_retrieval", {"top_k": limit}) as retrieval_span:
+            sources = answerer.retrieve(
+                question, limit=limit, filter_year=year, filter_meeting=meeting
+            )
+            set_span_attributes(retrieval_span, retrieval_span_attributes(sources))
+
+        if not sources:
+            console.print("[yellow]Nenhum trecho encontrado. Rode 'index' primeiro.[/yellow]")
+            return
+
+        with tracer.span("copom_rag_generation", {"llm.provider": settings.LLM_BASE_URL}) as gen:
+            try:
+                answer = answerer.generate(question, sources)
+            except GenerationUnavailableError as err:
+                console.print(f"\n[red]Geração indisponível:[/red] {err}")
+                raise typer.Exit(code=1) from err
+            set_span_attributes(gen, answer.llm_span_attributes())
+
+        elapsed = time.perf_counter() - start_time
+        set_span_attributes(chain_span, {"output.value": answer.text})
+
+    console.print(Panel(answer.text, title="Resposta", border_style="green"))
+
+    table = Table(title="Fontes citadas", show_header=True, header_style="bold magenta")
+    table.add_column("#", style="cyan", width=3)
+    table.add_column("Reunião", style="white")
+    table.add_column("Publicação", style="white")
+    table.add_column("Score", style="green")
+    for source in answer.sources:
+        table.add_row(
+            f"[{source.index}]",
+            f"#{source.nro_reuniao}",
+            source.data_publicacao,
+            f"{source.score:.4f}",
+        )
+    console.print(table)
+    console.print(
+        f"[dim]{answer.model} · {answer.total_tokens} tokens · {elapsed:.2f}s · "
+        "trace em http://localhost:6006[/dim]"
+    )
 
 
 if __name__ == "__main__":

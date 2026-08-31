@@ -28,7 +28,10 @@ python -m src.pipeline transform
 python -m src.pipeline index --batch-size 32
 python -m src.pipeline run-all --limit 15
 python -m src.pipeline query "cenário de inflação" --limit 3 --year 2026 --meeting 280
+python -m src.pipeline ask "por que o Copom manteve a Selic?" --limit 5
 ```
+
+`query` é retrieval puro (sem credencial); `ask` fecha o loop de RAG e é **o único comando que exige credencial** (`LLM_API_KEY` + extra `pip install -e ".[openai]"`). Quando a resposta sair ruim, use `query` para ver o que o retrieval de fato trouxe antes de culpar o prompt.
 
 **Antes de commitar:** a CI roda `ruff check` **e** `ruff format --check`. `make lint` só roda o `check` — passar nele não garante CI verde. Rode `make format` também.
 
@@ -52,6 +55,7 @@ BCB API ──ingest──> data/bronze/year=YYYY/month=MM/{doc_id}_{short_hash}
 - **`src/ingestion/`** — `bcb_client` (HTTP resiliente) → `collector` (idempotência + escrita Hive) → `schemas` (contratos).
 - **`src/processing/`** — `cleaner` (BeautifulSoup + normalização) → `chunker` (split + enriquecimento) → `schemas`.
 - **`src/vectorstore/`** — `embeddings` (provider abstrato) → `qdrant_manager` (coleção, upsert, busca).
+- **`src/generation/`** — `answerer` fecha o loop de RAG: `retrieve()` numera as passagens, `build_messages()` monta o prompt com citações, `generate()` chama o endpoint compatível com OpenAI. **Nada de fornecedor específico no código** — trocar NVIDIA/OpenAI/OpenRouter/Ollama é só `LLM_BASE_URL` + `LLM_MODEL`.
 
 ### Idempotência (o ponto central do projeto)
 
@@ -84,6 +88,9 @@ Além disso, `ensure_collection()` só verifica se a coleção **existe pelo nom
 ### Detalhes que não são óbvios pelo código
 
 - **O rodapé de presença é removido no Silver.** `AtaCleaner.strip_attendance_roster()` corta a partir do marcador `Presentes:` — são ~14% do corpus em nomes/cargos de participantes e uma frase de encerramento idêntica entre atas. Só corta se o marcador estiver após 50% do texto (nas atas amostradas ele nunca aparece antes de 79%); caso contrário loga um aviso e mantém tudo. O Bronze segue com o texto íntegro.
+- **A geração falha alta, de propósito.** Sem `LLM_API_KEY`, `generate()` levanta `GenerationUnavailableError` com instrução do que setar. Não adicione fallback — responder sem fonte é pior que não responder, e é a mesma armadilha do fallback de embeddings acima.
+- **Os spans do `ask` usam convenções do OpenInference** (`openinference.span.kind`, `retrieval.documents.N.document.*`, `llm.token_count.*`) para o Phoenix renderizar trace de RAG. São só atributos de span: **não é preciso a dependência `openinference-instrumentation`**, que foi removida de propósito.
+- `QdrantManager.search()` devolve `[]` quando a coleção não existe (com aviso no log), em vez de estourar traceback — `query` e `ask` já tratam resultado vazio com mensagem útil.
 - `CHUNK_SIZE=800` e `CHUNK_OVERLAP=100` são **tokens, não caracteres**: o `RecursiveCharacterTextSplitter` recebe `length_function=TokenCounter.count` (tiktoken `cl100k_base`, com fallback heurístico de ~4 chars/token).
 - A API do BCB é camelCase (`nroReuniao`, `textoAta`, `dataPublicacao`); os schemas Pydantic usam snake_case com `alias=`. Ao mexer em campos novos, adicione o alias.
 - `BCBClient` converte **429 e 5xx em `BCBClientError`** justamente para que o Tenacity os capture e faça backoff — `raise_for_status()` sozinho não daria retry.

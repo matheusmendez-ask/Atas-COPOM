@@ -56,6 +56,14 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
                                        │
                                        ▼
     ┌─────────────────────────────────────────────────────────────────────┐
+    │ 💬 CAMADA DE GERAÇÃO (RAG — comando `ask`)                          │
+    │  • Resposta fundamentada apenas nos trechos recuperados             │
+    │  • Citações [1][2] rastreáveis até reunião e data                   │
+    │  • Endpoint compatível com OpenAI (NVIDIA NIM por padrão)           │
+    └──────────────────────────────────┬──────────────────────────────────┘
+                                       │
+                                       ▼
+    ┌─────────────────────────────────────────────────────────────────────┐
     │ 🔍 CAMADA DE OBSERVABILIDADE & GOVERNANÇA (Arize Phoenix / OTel)    │
     │  • OpenTelemetry Spans para cada estágio do pipeline                │
     │  • Rastreamento de latência de inferência, contagem de tokens       │
@@ -116,6 +124,7 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
 | **Vector DB** | `qdrant-client` | Armazenamento de vetores e busca semântica |
 | **Embeddings** | `fastembed` (ONNX local) / `openai` | `intfloat/multilingual-e5-large` — multilingual e treinado para retrieval |
 | **Observabilidade** | `opentelemetry-sdk`, exportador OTLP/HTTP | Traces, spans, latência e monitoramento RAG (o servidor Arize Phoenix roda como container, não como dependência Python) |
+| **Geração (RAG)** | `openai` (extra opcional) | Cliente compatível com OpenAI: NVIDIA NIM, OpenRouter, Ollama |
 | **CLI & UI** | `typer`, `rich` | Interface de linha de comando elegante |
 | **Testes & Lint** | `pytest`, `pytest-cov`, `ruff` | Qualidade de software e cobertura de código |
 | **Containers** | `docker`, `docker compose` | Infraestrutura local de serviços |
@@ -234,7 +243,31 @@ python -m src.pipeline run-all --limit 15
 # ou: make run-pipeline
 ```
 
-### 5. Busca Semântica & Avaliação de Retrieval (RAG)
+### 5. Pergunta e Resposta com Citações (RAG completo)
+Recupera os trechos, gera a resposta fundamentada **apenas** neles e mostra as fontes:
+```bash
+python -m src.pipeline ask "por que o Copom manteve a Selic?" --limit 5
+python -m src.pipeline ask "qual o balanço de riscos?" --year 2026 --meeting 280
+```
+
+Requer o extra opcional e uma chave:
+```bash
+pip install -e ".[openai]"
+cp .env.example .env    # e preencha LLM_API_KEY
+```
+
+Sem `LLM_API_KEY` o comando **falha com mensagem explícita** em vez de responder sem fonte. O `ask` é o único comando que precisa de credencial; todo o resto do pipeline roda sem nenhuma.
+
+O provedor é configuração, não código — o cliente fala qualquer endpoint compatível com a API da OpenAI:
+
+| Provedor | `LLM_BASE_URL` | `LLM_MODEL` |
+| :--- | :--- | :--- |
+| NVIDIA NIM (padrão) | `https://integrate.api.nvidia.com/v1` | `moonshotai/kimi-k3` |
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
+| OpenRouter | `https://openrouter.ai/api/v1` | `<publisher>/<model>` |
+| Ollama (local, sem chave) | `http://localhost:11434/v1` | `llama3.1` |
+
+### 6. Busca Semântica & Avaliação de Retrieval (retrieval puro)
 Realize consultas em linguagem natural no Vector Store:
 ```bash
 python -m src.pipeline query "cenário de inflação e taxa Selic" --limit 3
@@ -264,6 +297,7 @@ ruff format src/ tests/
 
 Durante todas as etapas do pipeline e nas consultas semânticas, o módulo `src/observability/tracer.py` emite spans compatíveis com OpenTelemetry para o coletor Arize Phoenix:
 
+- **Traces de RAG (comando `ask`)**: spans aninhados seguindo as convenções semânticas do OpenInference — `CHAIN` (pergunta → resposta) contendo um `RETRIEVER` (documentos, ids e scores) e um `LLM` (modelo e contagem de tokens de prompt/completion). É isso que faz o Phoenix separar latência de recuperação da latência de geração, em vez de mostrar um bloco opaco.
 - **Duração de cada etapa**: Ingestão, Limpeza, Tokenização, Geração de Vetores e Upsert.
 - **Contabilidade de Tokens**: Volume de tokens processados por reunião e por chunk.
 - **RAG Retrieval Traces**: Latência de busca no Qdrant e similaridade por Cosseno.
