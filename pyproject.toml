@@ -19,24 +19,31 @@ dependencies = [
     "beautifulsoup4>=4.12.0",
     "langchain-text-splitters>=0.2.0",
     "tiktoken>=0.7.0",
-    "qdrant-client>=1.9.0",
+    # QdrantClient(check_compatibility=...) só existe a partir da 1.12.
+    "qdrant-client>=1.12.0",
     "fastembed>=0.3.0",
-    "arize-phoenix>=4.0.0",
-    "openinference-instrumentation>=0.1.0",
+    # O servidor Arize Phoenix roda como container (docker-compose), não como
+    # biblioteca: aqui só precisamos do exportador OTLP/HTTP que fala com ele.
     "opentelemetry-api>=1.24.0",
     "opentelemetry-sdk>=1.24.0",
-    "opentelemetry-exporter-otlp>=1.24.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.24.0",
     "typer>=0.12.0",
     "rich>=13.7.0",
     "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]
+# Necessário apenas com EMBEDDING_PROVIDER=openai.
+openai = [
+    "openai>=1.30.0",
+]
 dev = [
     "pytest>=8.0.0",
     "pytest-mock>=3.14.0",
     "pytest-cov>=5.0.0",
-    "ruff>=0.4.0",
+    # Faixa fechada: `ruff format` muda de comportamento entre minors e a CI
+    # roda `--check`, então um minor novo quebraria o build sozinho.
+    "ruff>=0.16.0,<0.17.0",
 ]
 
 [tool.setuptools.packages.find]

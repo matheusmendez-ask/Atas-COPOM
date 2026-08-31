@@ -49,7 +49,9 @@ class QdrantManager:
             self.client = QdrantClient(location=":memory:", check_compatibility=False)
         else:
             logger.info(f"Connecting to Qdrant at {self.url}")
-            self.client = QdrantClient(url=self.url, api_key=self.api_key, check_compatibility=False)
+            self.client = QdrantClient(
+                url=self.url, api_key=self.api_key, check_compatibility=False
+            )
 
     @staticmethod
     def generate_point_id(doc_id: str, chunk_id: str) -> str:

@@ -96,7 +96,7 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
 | **Processamento** | `beautifulsoup4`, `langchain-text-splitters`, `tiktoken` | Sanitização HTML, divisão semântica e tokens |
 | **Vector DB** | `qdrant-client` | Armazenamento de vetores e busca semântica |
 | **Embeddings** | `fastembed` (ONNX local) / `openai` | Geração de embeddings vetoriais de alta performance |
-| **Observabilidade** | `arize-phoenix`, `opentelemetry-sdk` | Traces, spans, latência e monitoramento RAG |
+| **Observabilidade** | `opentelemetry-sdk`, exportador OTLP/HTTP | Traces, spans, latência e monitoramento RAG (o servidor Arize Phoenix roda como container, não como dependência Python) |
 | **CLI & UI** | `typer`, `rich` | Interface de linha de comando elegante |
 | **Testes & Lint** | `pytest`, `pytest-cov`, `ruff` | Qualidade de software e cobertura de código |
 | **Containers** | `docker`, `docker compose` | Infraestrutura local de serviços |

@@ -84,7 +84,7 @@ class PipelineTracer:
             if attributes:
                 for k, v in attributes.items():
                     if v is not None:
-                        current_span.set_attribute(k, str(v) if isinstance(v, (dict, list)) else v)
+                        current_span.set_attribute(k, str(v) if isinstance(v, dict | list) else v)
             start_time = time.perf_counter()
             try:
                 yield current_span
