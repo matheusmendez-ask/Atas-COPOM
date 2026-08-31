@@ -121,18 +121,29 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
 
    O `--delay` existe porque free tiers estrangulam rajadas: 30 chamadas seguidas esgotam a cota, e a janela do limite dura mais do que qualquer backoff razoável dentro da requisição.
 
-   **Resultado medido (2026-08-31, 22 perguntas respondíveis sobre 66 chunks de 11 reuniões):**
+   **Recuperação medida (2026-08-31, 22 perguntas respondíveis sobre 66 chunks de 11 reuniões):**
 
-   | Métrica | Sem contexto no vetor | Com `embedding_text` |
-   | :--- | ---: | ---: |
-   | hit@1 | 14% | **32%** |
-   | hit@3 | 23% | **50%** |
-   | hit@5 | 36% | **64%** |
-   | MRR | 0,206 | **0,433** |
-   | Reunião esperada recuperada | 50% | **100%** |
-   | *hit@1 de um recuperador aleatório* | *2,6%* | *2,6%* |
+   | Configuração | hit@1 | hit@3 | hit@5 | MRR | Proveniência |
+   | :--- | ---: | ---: | ---: | ---: | ---: |
+   | Densa, sem contexto no vetor | 14% | 23% | 36% | 0,206 | 50% |
+   | Densa, com `embedding_text` | 32% | 50% | 64% | 0,433 | 100% |
+   | **Híbrida (denso + BM25, fusão DBSF)** | **36%** | **59%** | **77%** | **0,508** | **100%** |
+   | *hit@1 de um recuperador aleatório* | *2,6%* | | | | |
 
-   Os números estão publicados sem maquiagem: **o sistema ainda erra a passagem certa em dois terços das perguntas no top-1**. O que a avaliação já permitiu provar é que contextualizar o vetor praticamente dobra todas as métricas.
+   Duas correções guiadas por medição, cada uma provada contra o gabarito antes de entrar.
+
+   A primeira: o sistema recuperava **o tópico certo do documento errado** — para "decisão da 280ª reunião", os cinco primeiros eram seções de decisão das atas 277, 278, 276, 274 e 279, com scores entre 0,859 e 0,870. As atas são formulaicas e `nro_reuniao` vivia só no payload do Qdrant, que filtra mas não embute. `ChunkPayload.embedding_text` passou a prefixar o trecho com a identidade do documento antes de embutir.
+
+   A segunda: **busca híbrida**. Vetores densos capturam sentido mas borram tokens literais, então passagens de prosa idêntica que só diferem nos números caem quase no mesmo ponto. BM25 pontua termo exato — é o que separa `4,9% e 4,0%` de `5,0% e 4,2%`. A coleção guarda os dois vetores e o Qdrant funde os rankings no servidor.
+
+   **A escolha do método de fusão contrariou a expectativa.** RRF era a aposta a priori: funde por posição, dispensa normalizar cosseno (0–1) contra BM25 (ilimitado) e não tem peso para errar. Mas na medição o RRF derrubou a proveniência de 100% para 83% — fundir por posição promove passagens em que ambos concordam e rebaixa a que só a busca densa achou, desfazendo o ganho anterior. O DBSF não regrediu nada, e ficou.
+
+   | Fusão | hit@1 | hit@3 | hit@5 | MRR | Proveniência |
+   | :--- | ---: | ---: | ---: | ---: | ---: |
+   | RRF (prefetch ×4) | 32% | 68% | 77% | 0,515 | 83% ↓ |
+   | DBSF (prefetch ×10) | 36% | 59% | 77% | 0,508 | 100% |
+
+   **Ressalva:** 22 perguntas, cada uma vale 4,5 pontos percentuais. RRF ganha em hit@3 por duas perguntas; DBSF ganha em hit@1 e proveniência por uma cada. O critério de desempate foi não aceitar regressão em métrica nenhuma, não a soma dos placares.
 
    **Geração, medida com `gemini-3.7-flash` (30 perguntas, 2026-08-31):**
 

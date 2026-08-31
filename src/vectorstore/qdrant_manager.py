@@ -11,9 +11,31 @@ from qdrant_client.http.exceptions import UnexpectedResponse
 
 from src.config import settings
 from src.processing.schemas import ChunkPayload
-from src.vectorstore.embeddings import EmbeddingGenerator
+from src.vectorstore.embeddings import EmbeddingGenerator, SparseEmbedder
 
 logger = logging.getLogger(__name__)
+
+# Named vectors: one collection holds both halves of the hybrid index.
+DENSE_VECTOR_NAME = "dense"
+SPARSE_VECTOR_NAME = "bm25"
+
+# Fusion works on the union of both candidate lists, so each branch is asked for
+# more than the caller wants: a passage ranked 20th by BM25 can still win overall.
+# Depth matters for DBSF (x4 -> x10 moved hit@1 from 32% to 36%) but not for RRF.
+PREFETCH_MULTIPLIER = 10
+
+# Distribution-Based Score Fusion, chosen by measurement rather than by argument.
+# RRF was the a-priori pick -- it fuses ranks, so it needs no normalisation between
+# cosine (0-1) and BM25 (unbounded), and has no weight to tune wrong. But on the
+# golden set RRF dropped provenance from 100% to 83%: fusing by position promotes
+# passages both retrievers agree on and demotes one that only dense found, undoing
+# the gain from embedding document identity. DBSF regressed nothing.
+#
+#   golden set, 22 answerable   hit@1  hit@3  hit@5    MRR  provenance
+#   dense only                    32%    50%    64%  0.433        100%
+#   hybrid RRF   (prefetch x4)    32%    68%    77%  0.515         83%
+#   hybrid DBSF  (prefetch x10)   36%    59%    77%  0.508        100%
+FUSION_METHOD = models.Fusion.DBSF
 
 
 @dataclass
@@ -37,11 +59,13 @@ class QdrantManager:
         api_key: str | None = None,
         collection_name: str | None = None,
         embedding_generator: EmbeddingGenerator | None = None,
+        sparse_embedder: SparseEmbedder | None = None,
     ) -> None:
         self.url = url or settings.QDRANT_URL
         self.api_key = api_key or settings.QDRANT_API_KEY
         self.collection_name = collection_name or settings.QDRANT_COLLECTION_NAME
         self.embedding_generator = embedding_generator or EmbeddingGenerator()
+        self.sparse_embedder = sparse_embedder or SparseEmbedder()
 
         # Initialize Qdrant Client (supports http URL or ':memory:' for tests)
         if self.url == ":memory:":
@@ -75,10 +99,17 @@ class QdrantManager:
                 )
                 self.client.create_collection(
                     collection_name=self.collection_name,
-                    vectors_config=models.VectorParams(
-                        size=dim,
-                        distance=models.Distance.COSINE,
-                    ),
+                    vectors_config={
+                        DENSE_VECTOR_NAME: models.VectorParams(
+                            size=dim,
+                            distance=models.Distance.COSINE,
+                        )
+                    },
+                    # IDF is computed by the server across the collection; without
+                    # this modifier BM25 scores would ignore term rarity entirely.
+                    sparse_vectors_config={
+                        SPARSE_VECTOR_NAME: models.SparseVectorParams(modifier=models.Modifier.IDF)
+                    },
                     optimizers_config=models.OptimizersConfigDiff(
                         indexing_threshold=10000,
                     ),
@@ -101,7 +132,25 @@ class QdrantManager:
         """
         info = self.client.get_collection(self.collection_name)
         params = info.config.params.vectors
-        actual_dim = getattr(params, "size", None)
+
+        if not isinstance(params, dict):
+            # Collections created before hybrid search hold a single anonymous
+            # vector. Qdrant would reject the named queries with an opaque error,
+            # so name the actual problem here.
+            raise ValueError(
+                f"Collection '{self.collection_name}' predates hybrid search: it holds one "
+                "anonymous vector instead of the named 'dense' and 'bm25' vectors. Drop it "
+                "and reindex (transform + index), or point QDRANT_COLLECTION_NAME elsewhere."
+            )
+
+        dense_params = params.get(DENSE_VECTOR_NAME)
+        if dense_params is None:
+            raise ValueError(
+                f"Collection '{self.collection_name}' has no '{DENSE_VECTOR_NAME}' vector "
+                f"(found: {sorted(params)}). Drop it and reindex."
+            )
+
+        actual_dim = getattr(dense_params, "size", None)
         if actual_dim is not None and actual_dim != expected_dim:
             raise ValueError(
                 f"Collection '{self.collection_name}' stores {actual_dim}-dimensional vectors "
@@ -156,18 +205,25 @@ class QdrantManager:
             try:
                 # Generate embeddings for current batch
                 vectors = self.embedding_generator.embed_texts(texts)
+                sparse_vectors = self.sparse_embedder.embed_documents(texts)
 
                 points: list[models.PointStruct] = []
-                for chunk, vector in zip(chunk_batch, vectors, strict=False):
+                for chunk, vector, sparse in zip(chunk_batch, vectors, sparse_vectors, strict=True):
                     point_id = self.generate_point_id(chunk.metadata.doc_id, chunk.chunk_id)
                     payload = {
                         "text": chunk.text,
                         **chunk.metadata.model_dump(),
                     }
+                    indices, values = sparse
                     points.append(
                         models.PointStruct(
                             id=point_id,
-                            vector=vector,
+                            vector={
+                                DENSE_VECTOR_NAME: vector,
+                                SPARSE_VECTOR_NAME: models.SparseVector(
+                                    indices=indices, values=values
+                                ),
+                            },
                             payload=payload,
                         )
                     )
@@ -240,10 +296,30 @@ class QdrantManager:
 
         query_filter = models.Filter(must=conditions) if conditions else None
 
-        # Search Qdrant using unified query_points API
+        sparse_indices, sparse_values = self.sparse_embedder.embed_query(query)
+
+        # Hybrid: dense and BM25 each produce a ranking, fused by Reciprocal Rank
+        # Fusion. RRF combines positions rather than scores, so it needs no
+        # normalisation between cosine (0-1) and BM25 (unbounded) -- and it has no
+        # weight to tune wrong.
+        candidates = limit * PREFETCH_MULTIPLIER
         search_results = self.client.query_points(
             collection_name=self.collection_name,
-            query=query_vector,
+            prefetch=[
+                models.Prefetch(
+                    query=query_vector,
+                    using=DENSE_VECTOR_NAME,
+                    limit=candidates,
+                    filter=query_filter,
+                ),
+                models.Prefetch(
+                    query=models.SparseVector(indices=sparse_indices, values=sparse_values),
+                    using=SPARSE_VECTOR_NAME,
+                    limit=candidates,
+                    filter=query_filter,
+                ),
+            ],
+            query=models.FusionQuery(fusion=FUSION_METHOD),
             limit=limit,
             score_threshold=score_threshold,
             query_filter=query_filter,

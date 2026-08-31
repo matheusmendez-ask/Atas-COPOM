@@ -108,6 +108,21 @@ class Settings(BaseSettings):
         default=None,
         description="OpenAI API Key if using OpenAI embeddings.",
     )
+    SPARSE_MODEL_NAME: str = Field(
+        default="Qdrant/bm25",
+        description=(
+            "Sparse (lexical) model for hybrid retrieval. BM25 matches literal terms, "
+            "which dense vectors are poor at: near-identical passages differing only in "
+            "figures are indistinguishable to an embedding but not to BM25."
+        ),
+    )
+    BM25_LANGUAGE: str = Field(
+        default="portuguese",
+        description=(
+            "Language for BM25 stemming and stopword removal. The corpus is in "
+            "Portuguese; 'english' would leave Portuguese stopwords in the index."
+        ),
+    )
     QDRANT_URL: str = Field(
         default="http://localhost:6333",
         description="Qdrant service URL or ':memory:' for in-memory testing.",

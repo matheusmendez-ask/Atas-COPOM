@@ -4,7 +4,7 @@ Provides rate-limiting handling, batching, and vector normalization.
 """
 
 import logging
-from typing import Literal
+from typing import Any, Literal
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -15,6 +15,55 @@ logger = logging.getLogger(__name__)
 
 class EmbeddingUnavailableError(RuntimeError):
     """Raised when the configured embedding provider cannot produce vectors."""
+
+
+class SparseEmbedder:
+    """BM25 sparse vectors: the lexical half of hybrid retrieval.
+
+    Dense vectors capture meaning but blur literal tokens, so passages that read
+    almost identically and differ only in their figures land on nearly the same
+    point. BM25 scores exact terms, which is what separates "4,9% e 4,0%" from
+    "5,0% e 4,2%". Qdrant fuses the two rankings server-side.
+    """
+
+    def __init__(self, model_name: str | None = None, language: str | None = None) -> None:
+        self.model_name = model_name or settings.SPARSE_MODEL_NAME
+        self.language = language or settings.BM25_LANGUAGE
+
+        try:
+            from fastembed import SparseTextEmbedding
+        except ImportError as err:  # pragma: no cover - fastembed is a core dependency
+            raise EmbeddingUnavailableError(
+                "The 'fastembed' package is required for BM25 sparse embeddings."
+            ) from err
+
+        logger.info(f"Initializing sparse model {self.model_name} (language={self.language})")
+        try:
+            self._model = SparseTextEmbedding(model_name=self.model_name, language=self.language)
+        except Exception as err:
+            raise EmbeddingUnavailableError(
+                f"Could not load the sparse model '{self.model_name}' with language "
+                f"'{self.language}': {err}. Check SPARSE_MODEL_NAME and BM25_LANGUAGE."
+            ) from err
+
+    @staticmethod
+    def _as_pairs(vector: Any) -> tuple[list[int], list[float]]:
+        """Convert a FastEmbed sparse vector to plain lists, keeping qdrant out of here."""
+        return [int(i) for i in vector.indices], [float(v) for v in vector.values]
+
+    def embed_documents(self, texts: list[str]) -> list[tuple[list[int], list[float]]]:
+        """Sparse-embed passages for indexing."""
+        if not texts:
+            return []
+        return [self._as_pairs(v) for v in self._model.passage_embed(texts)]
+
+    def embed_query(self, query: str) -> tuple[list[int], list[float]]:
+        """Sparse-embed a search query.
+
+        BM25 weights queries differently from passages, so this is not the same
+        call as :meth:`embed_documents` with a one-item list.
+        """
+        return self._as_pairs(next(iter(self._model.query_embed([query]))))
 
 
 class EmbeddingGenerator:

@@ -3,11 +3,16 @@
 from unittest.mock import patch
 
 import pytest
+from qdrant_client.http import models
 
 from src.config import settings
 from src.processing.chunker import AtaChunker
 from src.vectorstore.embeddings import EmbeddingGenerator, EmbeddingUnavailableError
-from src.vectorstore.qdrant_manager import QdrantManager
+from src.vectorstore.qdrant_manager import (
+    DENSE_VECTOR_NAME,
+    SPARSE_VECTOR_NAME,
+    QdrantManager,
+)
 
 
 class TestEmbeddings:
@@ -87,6 +92,52 @@ class TestQdrantManager:
         assert id1 == id2
         # Different chunk produces different UUID
         assert id1 != id3
+
+    def test_collection_carries_both_dense_and_sparse_vectors(
+        self, in_memory_qdrant: QdrantManager
+    ):
+        """Hybrid retrieval needs both halves stored in the same collection."""
+        in_memory_qdrant.ensure_collection()
+
+        params = in_memory_qdrant.client.get_collection(
+            in_memory_qdrant.collection_name
+        ).config.params
+
+        assert DENSE_VECTOR_NAME in params.vectors
+        assert SPARSE_VECTOR_NAME in params.sparse_vectors
+        # Without the IDF modifier BM25 would ignore term rarity altogether.
+        assert params.sparse_vectors[SPARSE_VECTOR_NAME].modifier == models.Modifier.IDF
+
+    def test_bm25_separates_passages_that_differ_only_in_figures(
+        self, in_memory_qdrant: QdrantManager, sample_bronze_record
+    ):
+        """The case dense retrieval could not solve: same prose, different numbers."""
+        base = AtaChunker(chunk_size=100).process_record(sample_bronze_record).chunks[0]
+        template = "As expectativas de inflação apuradas pela pesquisa Focus situam-se em {}."
+        variants = []
+        for index, figures in enumerate(("4,9% e 4,0%", "5,0% e 4,2%", "5,5% e 4,5%")):
+            variant = base.model_copy(deep=True)
+            variant.text = template.format(figures)
+            variant.chunk_id = f"copom_280_chunk_{index:03d}"
+            variant.metadata.chunk_id = variant.chunk_id
+            variants.append(variant)
+        in_memory_qdrant.upsert_chunks(variants)
+
+        results = in_memory_qdrant.search("expectativas do Focus de 5,0% e 4,2%", limit=3)
+
+        assert "5,0% e 4,2%" in results[0]["payload"]["text"]
+
+    def test_legacy_collection_without_named_vectors_is_rejected(
+        self, in_memory_qdrant: QdrantManager
+    ):
+        """A pre-hybrid collection must say so, not fail with an opaque Qdrant error."""
+        in_memory_qdrant.client.create_collection(
+            collection_name=in_memory_qdrant.collection_name,
+            vectors_config=models.VectorParams(size=8, distance=models.Distance.COSINE),
+        )
+
+        with pytest.raises(ValueError, match="predates hybrid search"):
+            in_memory_qdrant.ensure_collection(vector_size=8)
 
     def test_search_on_missing_collection_returns_nothing(self, in_memory_qdrant: QdrantManager):
         """Nothing indexed yet is an ordinary state, not a traceback."""

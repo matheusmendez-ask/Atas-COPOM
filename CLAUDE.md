@@ -36,7 +36,9 @@ python -m src.pipeline evaluate --limit 5                      # so recuperacao,
 python -m src.pipeline evaluate --with-generation --delay 25   # inclui fatos, citacoes e recusa
 ```
 
-**Antes de mexer em chunking, embeddings ou prompt, rode o `evaluate` e anote o número.** Estado conhecido em 2026-08-31 (30 perguntas, 22 respondíveis): hit@1 32%, hit@5 64%, MRR 0,433, proveniência 100%, contra baseline aleatório de 2,6%. Números maiores que estes em relatos antigos vieram do conjunto de 11 perguntas, que era otimista. Ancore o gabarito em frases, nunca em `chunk_id`.
+**Antes de mexer em chunking, embeddings ou prompt, rode o `evaluate` e anote o número.** Estado conhecido em 2026-08-31 (30 perguntas, 22 respondíveis): hit@1 36%, hit@3 59%, hit@5 77%, MRR 0,508, proveniência 100%, contra baseline aleatório de 2,6%.
+
+**A busca é híbrida: denso + BM25, fundidos por DBSF no servidor.** A coleção usa vetores NOMEADOS (`dense` + `bm25` esparso com `Modifier.IDF`) — coleções antigas de vetor anônimo são rejeitadas com mensagem explícita. **Não troque para RRF sem medir**: ele parece a escolha principiada (funde por posição, dispensa normalização), mas derruba a proveniência de 100% para 83%, porque promove passagens em que os dois métodos concordam e rebaixa a que só a densa achou. `FUSION_METHOD` e `PREFETCH_MULTIPLIER` estão no topo do `qdrant_manager` com a tabela da medição. Números maiores que estes em relatos antigos vieram do conjunto de 11 perguntas, que era otimista. Ancore o gabarito em frases, nunca em `chunk_id`.
 
 **Geração medida (gemini-3.7-flash, 2026-08-31): recusa 8/8 nas armadilhas, citações 100% válidas, fatos 5/6.** O sistema não alucina; o elo fraco é a recuperação. Antes de mexer no prompt, confira se o problema não é a busca não ter entregado a passagem — o único fato não confirmado foi o modelo recusando corretamente por falta de contexto.
 
