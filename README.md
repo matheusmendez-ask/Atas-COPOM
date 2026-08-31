@@ -134,6 +134,20 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
 
    Os números estão publicados sem maquiagem: **o sistema ainda erra a passagem certa em dois terços das perguntas no top-1**. O que a avaliação já permitiu provar é que contextualizar o vetor praticamente dobra todas as métricas.
 
+   **Geração, medida com `gemini-3.7-flash` (30 perguntas, 2026-08-31):**
+
+   | Métrica | Valor |
+   | :--- | ---: |
+   | Recusa nas armadilhas | **8/8 — 100%** |
+   | Citações dentro da faixa | **100%** |
+   | Fatos esperados na resposta | 5/6 — 83% |
+
+   **O sistema não alucina.** Nas 8 perguntas cujas respostas não existem no corpus, ele recusou todas, explicitamente: *"Os trechos fornecidos não contêm informações sobre a regulação de bitcoin e criptomoedas."* Nenhuma citação apontou para passagem inexistente.
+
+   O único fato não confirmado (`focus-278`) merece leitura cuidadosa: o modelo respondeu *"os trechos fornecidos não contêm as expectativas de inflação para 2026 e 2027"* — ou seja, **recusou corretamente**, porque a recuperação não lhe entregou a passagem certa. A falha é de recuperação, e a geração a tratou com honestidade em vez de inventar números. É exatamente o comportamento desejado diante de contexto insuficiente.
+
+   Isso separa os dois problemas: **a recuperação é o elo fraco (32% de hit@1), a geração é confiável.** Melhorar o sistema significa melhorar a busca, não o prompt.
+
    O diagnóstico que só a medição tornou visível: o sistema recuperava **o tópico certo do documento errado**. Para "decisão da 280ª reunião", os cinco primeiros resultados eram seções de decisão das atas 277, 278, 276, 274 e 279, com scores entre 0,859 e 0,870 — as atas do Copom são formulaicas, e `nro_reuniao` vivia no payload do Qdrant, que filtra mas não embute. A correção é `ChunkPayload.embedding_text`: o vetor passa a ser calculado sobre o trecho prefixado com a identidade do documento, enquanto o texto exibido continua limpo.
 
    **O tamanho do conjunto importa, e há evidência disso aqui.** A primeira versão tinha 11 perguntas respondíveis e indicava hit@1 de 55%. Ao dobrar para 22 — com perguntas mineradas mecanicamente do corpus, não escolhidas a dedo — o mesmo sistema mede 32%. O conjunto pequeno era otimista; o maior é o número em que se pode confiar. Mesmo assim, cada pergunta ainda vale 4,5 pontos percentuais.

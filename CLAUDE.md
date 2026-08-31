@@ -38,6 +38,8 @@ python -m src.pipeline evaluate --with-generation --delay 25   # inclui fatos, c
 
 **Antes de mexer em chunking, embeddings ou prompt, rode o `evaluate` e anote o número.** Estado conhecido em 2026-08-31 (30 perguntas, 22 respondíveis): hit@1 32%, hit@5 64%, MRR 0,433, proveniência 100%, contra baseline aleatório de 2,6%. Números maiores que estes em relatos antigos vieram do conjunto de 11 perguntas, que era otimista. Ancore o gabarito em frases, nunca em `chunk_id`.
 
+**Geração medida (gemini-3.7-flash, 2026-08-31): recusa 8/8 nas armadilhas, citações 100% válidas, fatos 5/6.** O sistema não alucina; o elo fraco é a recuperação. Antes de mexer no prompt, confira se o problema não é a busca não ter entregado a passagem — o único fato não confirmado foi o modelo recusando corretamente por falta de contexto.
+
 **`ChunkPayload.embedding_text` existe por um motivo medido.** O vetor é calculado sobre o trecho prefixado com "Ata da Nª reunião do Copom, publicada em ...", e não sobre `text` puro. Sem isso o sistema recuperava o tópico certo do **documento errado** (hit@1 27%, proveniência 40%): as atas são formulaicas e `nro_reuniao` só existia no payload, que filtra mas não embute. **Não passe `chunk.text` direto ao embedder** — `upsert_chunks` usa `embedding_text` de propósito. Mudar o prefixo exige reindexar e rerodar o `evaluate`.
 
 **O free tier da NVIDIA estrangula rajadas.** As 30 perguntas do gabarito disparam uma chamada cada; sem `--delay` o limite corta na primeira e, uma vez estourada a cota, ela recusa até chamada única por vários minutos. O backoff do `_complete` não resolve isso sozinho — a janela do limite dura mais que qualquer retry razoável. Use `--delay 25`.
