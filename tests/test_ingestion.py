@@ -1,0 +1,125 @@
+"""Unit and integration tests for Bronze layer ingestion and schemas."""
+
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from src.ingestion.bcb_client import BCBClient, BCBClientError
+from src.ingestion.collector import BronzeCollector
+from src.ingestion.schemas import BronzeAtaRecord, RawAtaItem
+
+
+class TestIngestionSchemas:
+    """Test suite for Pydantic v2 schemas in Ingestion layer."""
+
+    def test_raw_ata_item_validation(self, sample_catalog_response):
+        """Verify parsing and field aliasing for raw catalog items."""
+        item_data = sample_catalog_response["conteudo"][0]
+        item = RawAtaItem.model_validate(item_data)
+        assert item.nro_reuniao == 280
+        assert "280ª Reunião" in item.titulo
+        assert item.data_publicacao == "2026-08-11"
+
+    def test_bronze_record_factory_and_hash(self, sample_raw_html):
+        """Verify SHA-256 computation and Hive partition generation."""
+        record = BronzeAtaRecord.create(
+            nro_reuniao=280,
+            titulo="280ª Reunião",
+            data_publicacao="2026-08-11",
+            raw_content=sample_raw_html,
+            source_url="https://example.com/280",
+        )
+        assert record.doc_id == "copom_280"
+        assert record.ano == 2026
+        assert record.mes == 8
+        assert len(record.content_hash) == 64
+        assert record.short_hash == record.content_hash[:8]
+
+    def test_invalid_month_validation(self, sample_raw_html):
+        """Ensure month validation enforces 1-12 bounds."""
+        with pytest.raises(ValueError, match="Month must be between 1 and 12"):
+            BronzeAtaRecord(
+                doc_id="copom_999",
+                nro_reuniao=999,
+                titulo="Test",
+                data_publicacao="2026-15-01",
+                ano=2026,
+                mes=15,  # Invalid month
+                source_url="http://example.com",
+                raw_content=sample_raw_html,
+                content_hash="abc123",
+            )
+
+
+class TestBCBClient:
+    """Test suite for BCB API client resilience and requests."""
+
+    def test_fetch_atas_list_success(self, sample_catalog_response):
+        """Test successful catalog retrieval."""
+        client = BCBClient()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = sample_catalog_response
+
+        with patch.object(client.session, "get", return_value=mock_resp):
+            items = client.fetch_atas_list(quantidade=2)
+            assert len(items) == 2
+            assert items[0]["nroReuniao"] == 280
+
+    def test_fetch_ata_details_success(self, sample_detail_response):
+        """Test successful detail retrieval."""
+        client = BCBClient()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = sample_detail_response
+
+        with patch.object(client.session, "get", return_value=mock_resp):
+            detail = client.fetch_ata_details(280)
+            assert detail is not None
+            assert detail["nroReuniao"] == 280
+            assert "A) Atualização" in detail["textoAta"]
+
+    def test_client_retry_on_server_error(self):
+        """Test that client retries on HTTP 500 error."""
+        client = BCBClient(max_retries=2, backoff_factor=0.01)
+        mock_err_resp = MagicMock()
+        mock_err_resp.status_code = 500
+
+        with patch.object(client.session, "get", return_value=mock_err_resp) as mock_get:
+            with pytest.raises(BCBClientError, match="HTTP 500"):
+                client.fetch_atas_list(quantidade=1)
+            # Should have retried up to max_retries
+            assert mock_get.call_count == 2
+
+
+class TestBronzeCollector:
+    """Test suite for idempotent Bronze layer data collection."""
+
+    def test_idempotent_ingestion_flow(
+        self, temp_lakehouse_dirs, sample_catalog_response, sample_detail_response
+    ):
+        """Test first ingestion writes file, second ingestion skips."""
+        bronze_dir = temp_lakehouse_dirs["bronze"]
+        mock_client = MagicMock(spec=BCBClient)
+        mock_client.base_url = "https://mock.bcb.gov.br"
+        mock_client.fetch_atas_list.return_value = sample_catalog_response["conteudo"][:1]
+        mock_client.fetch_ata_details.return_value = sample_detail_response["conteudo"][0]
+
+        collector = BronzeCollector(client=mock_client, bronze_dir=bronze_dir)
+
+        # Run 1: Should ingest 1 new file
+        summary_1 = collector.run(limit=1)
+        assert summary_1.total_catalog_items == 1
+        assert summary_1.new_ingested == 1
+        assert summary_1.skipped_existing == 0
+
+        # Check file on disk
+        files = collector.list_all_bronze_files()
+        assert len(files) == 1
+        assert "year=2026/month=08" in str(files[0]).replace("\\", "/")
+
+        # Run 2: Should detect existing hash and skip
+        summary_2 = collector.run(limit=1)
+        assert summary_2.total_catalog_items == 1
+        assert summary_2.new_ingested == 0
+        assert summary_2.skipped_existing == 1
