@@ -297,6 +297,7 @@ O provedor é configuração, não código — o cliente fala qualquer endpoint 
 | Provedor | `LLM_BASE_URL` | `LLM_MODEL` |
 | :--- | :--- | :--- |
 | NVIDIA NIM (padrão) | `https://integrate.api.nvidia.com/v1` | `moonshotai/kimi-k3` |
+   | Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai/` | `gemini-3.7-flash` |
 | OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
 | OpenRouter | `https://openrouter.ai/api/v1` | `<publisher>/<model>` |
 | Ollama (local, sem chave) | `http://localhost:11434/v1` | `llama3.1` |
