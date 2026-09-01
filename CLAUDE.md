@@ -36,6 +36,8 @@ python -m src.pipeline evaluate --limit 5                      # so recuperacao,
 python -m src.pipeline evaluate --with-generation --delay 25   # inclui fatos, citacoes e recusa
 ```
 
+**Reranking com cross-encoder já foi testado e REJEITADO** (2026-09-01). Não refaça sem medir antes: os três modelos do FastEmbed pioraram o hit@1 — jina-reranker-v2-multilingual 73%→55% a 5,16s/pergunta, bge-reranker-base 41%, ms-marco-MiniLM 64%, contra 0,16s/pergunta sem reranker. Reordenam por relevância de domínio geral, enquanto aqui a distinção está em números e em qual reunião. A tabela completa está no README.
+
 **Antes de mexer em chunking, embeddings ou prompt, rode o `evaluate` e anote o número.** Estado conhecido em 2026-08-31, medido no **Qdrant servidor** com 575 chunks de 15 reuniões (266–280): hit@1 68%, hit@3 86%, hit@5 86%, MRR 0,765, proveniência 83%, fatos 83%, citações 100%, recusa 8/8. Baseline aleatório 0,4%.
 
 **Números maiores em relatos antigos vieram de Qdrant em memória sobre 403 chunks de 11 reuniões** (hit@1 73%). Servem para comparar configurações entre si, não com o servidor — o corpus real tem 172 chunks a mais de distratores. Ao medir, diga sempre qual corpus usou.

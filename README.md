@@ -181,6 +181,21 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
 
    O custo que a métrica de recuperação não enxerga — cinco passagens de 150 tokens dão ~750 tokens de contexto ao modelo, contra ~4.000 antes — foi medido à parte e **não se materializou**: fatos 5/6, citações 100% e recusa 8/8, idênticos aos de 800 tokens.
 
+   **Reranking com cross-encoder foi testado e rejeitado (2026-09-01).** É a técnica que a literatura recomenda quando o hit@1 trava, e os três modelos disponíveis no FastEmbed **pioraram** a recuperação:
+
+   | Configuração | hit@1 | hit@3 | hit@5 | MRR | Prov. | s/pergunta |
+   | :--- | ---: | ---: | ---: | ---: | ---: | ---: |
+   | **Sem reranker** | **73%** | **86%** | **86%** | **0,795** | 83% | **0,16** |
+   | `Xenova/ms-marco-MiniLM-L-6-v2` | 64% | 82% | 86% | 0,731 | 67% | 1,52 |
+   | `BAAI/bge-reranker-base` | 41% | 82% | 82% | 0,598 | 83% | 6,45 |
+   | `jinaai/jina-reranker-v2-base-multilingual` | 55% | 73% | 82% | 0,647 | 100% | 5,16 |
+
+   O melhor deles custa 32× mais latência para perder 18 pontos de hit@1. A hipótese: esses modelos são treinados em pares pergunta-passagem de domínio geral (MS MARCO), e aqui a distinção entre passagens está em **números** e em **qual reunião** — não na relevância semântica que eles aprenderam. Reordenam por um critério que não é o que este corpus precisa, desmanchando um ranking que a busca híbrida com identidade de documento já tinha acertado.
+
+   Sintoma revelador: o Jina *encontra* as três perguntas do Focus (ranks 1, 5, 3) onde o sistema atual perde uma (1, –, 2). Melhora o recall e piora a ordenação.
+
+   Sem o gabarito isso teria entrado no projeto: a técnica é reconhecida, o código funcionava, ninguém questionaria. Teria custado 1,1 GB de download, licença não comercial e 32× de latência para piorar a busca.
+
    **Ressalvas:** 22 perguntas, cada uma vale 4,5 pontos percentuais. A proveniência regrediu de 100% para 83% (uma pergunta de seis), aceito diante de oito perguntas a mais acertadas no hit@1. O resultado de 400/60 é anômalo e não explicado — proveniência de 50%, pior que 800 no hit@5. E na escolha da fusão, RRF ganha hit@3 por duas perguntas enquanto DBSF ganha hit@1 e proveniência por uma cada; o desempate foi não aceitar regressão em métrica nenhuma, não somar placares.
 
    **Geração, medida com `gemini-3.7-flash` (30 perguntas, 2026-08-31):**
