@@ -13,7 +13,7 @@
 -->
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Status em 2026-08-31:** CI verde em Python 3.11 e 3.12 · 71 testes · 85% de cobertura · avaliação de RAG com hit@1 de 68% e recusa de 8/8 nas perguntas-armadilha.
+**Status em 2026-09-01:** CI verde em Python 3.11 e 3.12 · 81 testes · 85% de cobertura · avaliação de RAG com hit@1 de 68% e recusa de 8/8 nas perguntas-armadilha.
 
 *Valores datados e conferidos à mão. Um badge de CI dinâmico não funciona enquanto o repositório for privado — o endpoint do GitHub devolve 404 mesmo autenticado, e o proxy de imagens busca sempre anonimamente. O badge está pronto, comentado no topo deste arquivo.*
 

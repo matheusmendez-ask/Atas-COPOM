@@ -19,7 +19,7 @@ python -m pytest tests/test_ingestion.py::TestIngestionSchemas::test_raw_ata_ite
 
 **Não reintroduza `arize-phoenix` nas dependências de runtime.** O código nunca importa `phoenix` — só o exportador OTLP/HTTP; o servidor Phoenix roda como container. Instalar o pacote traz o `arize-phoenix-client`, que registra um plugin pytest (entry point `pytest11` chamado `phoenix`) carregado automaticamente; ele importa `phoenix`, que usa `mappingproxy` como default de dataclass — aceito só a partir do 3.12. Com ele instalado, **no Python 3.11 o pytest nem chega a coletar** (o projeto declara `requires-python = ">=3.11"` e a CI testa 3.11).
 
-Estado medido em 2026-08-31: **24 passed, ~83% de cobertura** (o badge "Pytest 100%" do README não corresponde).
+Estado medido em 2026-09-01: **81 passed, 85% de cobertura**. Números fixos em documento defasam — três vezes nesta base já. A CI publica `coverage.xml` como artefato; um Codecov encerraria o problema.
 
 Pipeline (cada etapa roda isolada; o disco é a interface entre elas):
 ```bash
