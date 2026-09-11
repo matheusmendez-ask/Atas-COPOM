@@ -58,3 +58,7 @@ format:
 
 clean:
 	rm -rf .pytest_cache .coverage htmlcov .ruff_cache build dist *.egg-info
+
+.PHONY: demo
+demo:
+	$(PYTHON) scripts/demo.py

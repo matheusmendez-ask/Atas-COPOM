@@ -19,6 +19,7 @@ from tenacity import (
 )
 
 from src.config import settings
+from src.generation.validation import check_citations
 from src.vectorstore.qdrant_manager import QdrantManager
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,17 @@ NO_CONTEXT_ANSWER = (
 
 class GenerationUnavailableError(RuntimeError):
     """Raised when answer generation cannot run: no credentials or missing extra."""
+
+
+class AnswerValidationError(GenerationUnavailableError):
+    """Preserve a rejected model output for evaluation, without serving it as an answer."""
+
+    def __init__(self, answer: "Answer") -> None:
+        self.answer = answer
+        super().__init__(
+            "A resposta não passou na validação de citações: texto vazio, "
+            "afirmação sem fonte ou referência inexistente. Tente reformular a pergunta."
+        )
 
 
 # Rate limits and transient server faults are worth another attempt; a malformed
@@ -64,6 +76,7 @@ class Source:
     data_publicacao: str
     score: float
     text: str
+    source_url: str = ""
 
 
 @dataclass
@@ -177,6 +190,7 @@ class CopomAnswerer:
                     data_publicacao=payload.get("data_publicacao", ""),
                     score=float(result.get("score") or 0.0),
                     text=payload.get("text", ""),
+                    source_url=payload.get("source_url", ""),
                 )
             )
         return sources
@@ -239,12 +253,17 @@ class CopomAnswerer:
         client = self._get_client()
         response = self._complete(client, self.build_messages(question, sources))
 
+        text = (response.choices[0].message.content or "").strip()
         usage = getattr(response, "usage", None)
-        return Answer(
+        answer = Answer(
             question=question,
-            text=(response.choices[0].message.content or "").strip(),
+            text=text,
             sources=sources,
             model=self.model,
             prompt_tokens=getattr(usage, "prompt_tokens", 0) or 0,
             completion_tokens=getattr(usage, "completion_tokens", 0) or 0,
         )
+
+        if not check_citations(text, sources).valid:
+            raise AnswerValidationError(answer)
+        return answer

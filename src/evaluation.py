@@ -13,42 +13,23 @@ system to assess the first, and a disagreement would not say which one erred.
 """
 
 import json
-import re
 import time
-import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from src.generation.answerer import CopomAnswerer
-
-GOLDEN_SET_PATH = Path(__file__).resolve().parent.parent / "evaluation" / "golden_set.json"
-
-CITATION_PATTERN = re.compile(r"\[(\d+)\]")
-
-# The system prompt instructs the model to say plainly when the excerpts do not
-# answer the question. Matching that is a heuristic, not a proof -- it is listed
-# here so a reader can see exactly what counts as a refusal.
-REFUSAL_MARKERS = (
-    "nao encontrei",
-    "nao contem",
-    "nao permitem responder",
-    "nao e possivel responder",
-    "nao ha informacao",
-    "nao ha trechos",
-    "nao mencionam",
-    "nao tratam",
-    "nao abordam",
-    "nao respondem",
-    "trechos fornecidos nao",
+from src.generation.answerer import AnswerValidationError, CopomAnswerer
+from src.generation.validation import (
+    check_citations,
+    citations_within_range,
+    looks_like_refusal,
+    normalize,
+)
+from src.generation.validation import (
+    cited_indices as cited_indices,
 )
 
-
-def normalize(text: str) -> str:
-    """Casefold, strip accents and collapse whitespace for robust matching."""
-    decomposed = unicodedata.normalize("NFKD", text)
-    stripped = "".join(c for c in decomposed if not unicodedata.combining(c))
-    return " ".join(stripped.lower().split())
+GOLDEN_SET_PATH = Path(__file__).resolve().parent.parent / "evaluation" / "golden_set.json"
 
 
 def first_matching_rank(passages: list[str], anchors: list[str]) -> int | None:
@@ -69,26 +50,6 @@ def first_matching_rank(passages: list[str], anchors: list[str]) -> int | None:
     return None
 
 
-def cited_indices(answer: str) -> set[int]:
-    """Extract the passage numbers the answer cites, as in '[1]' or '[2][3]'."""
-    return {int(n) for n in CITATION_PATTERN.findall(answer)}
-
-
-def citations_within_range(answer: str, source_count: int) -> bool:
-    """True when every citation points at a passage that was actually supplied.
-
-    Models routinely cite '[7]' when handed five passages; that is a fabricated
-    reference even if the prose around it happens to be right.
-    """
-    return all(1 <= n <= source_count for n in cited_indices(answer))
-
-
-def looks_like_refusal(answer: str) -> bool:
-    """True when the answer declines instead of asserting something."""
-    normalized = normalize(answer)
-    return any(marker in normalized for marker in REFUSAL_MARKERS)
-
-
 @dataclass
 class QuestionResult:
     """Outcome for a single golden-set question."""
@@ -105,6 +66,12 @@ class QuestionResult:
     citations_ok: bool | None = None
     refused: bool | None = None
     generation_error: str | None = None
+    citations_present: bool | None = None
+    citation_contract_ok: bool | None = None
+    validation_error: str | None = None
+    numeric_support_ok: bool | None = None
+    retrieved_sources: list[dict[str, Any]] = field(default_factory=list)
+    elapsed_seconds: float = 0.0
 
     @property
     def retrieval_ok(self) -> bool:
@@ -196,6 +163,7 @@ def run_evaluation(
     limit: int = 5,
     generate: bool = False,
     delay: float = 0.0,
+    corpus_payloads: list[dict[str, Any]] | None = None,
 ) -> EvaluationReport:
     """Run every golden-set question through retrieval, and optionally generation.
 
@@ -216,6 +184,7 @@ def run_evaluation(
     for position, entry in enumerate(golden.get("questions", [])):
         if generate and delay and position:
             time.sleep(delay)
+        started = time.perf_counter()
         sources = answerer.retrieve(entry["question"], limit=limit)
         authoring = entry.get("authoring", {})
         result = QuestionResult(
@@ -223,8 +192,15 @@ def run_evaluation(
             kind=entry["kind"],
             question=entry["question"],
             retrieved_count=len(sources),
+            retrieved_sources=[asdict(s) for s in sources],
             random_baseline=authoring.get("random_hit1_baseline", 0.0),
         )
+
+        if corpus_payloads is not None and entry["kind"] == "answerable":
+            result.random_baseline = sum(
+                first_matching_rank([p.get("text", "")], entry["must_retrieve_any"]) is not None
+                for p in corpus_payloads
+            ) / max(1, len(corpus_payloads))
 
         if entry["kind"] == "answerable":
             result.hit_rank = first_matching_rank(
@@ -237,13 +213,24 @@ def run_evaluation(
         if generate:
             try:
                 answer = answerer.generate(entry["question"], sources)
+            except AnswerValidationError as err:
+                # Invalid model output is a graded failure, not missing data.
+                answer = err.answer
+                result.validation_error = str(err)
             except Exception as err:
                 # A quota exhausted halfway through must not discard the retrieval
                 # results already gathered: grade what is gradable and say what broke.
-                result.generation_error = f"{type(err).__name__}: {err}"
+                result.generation_error = (
+                    f"{type(err).__name__} (status={getattr(err, 'status_code', 'unknown')})"
+                )
+                result.elapsed_seconds = round(time.perf_counter() - started, 4)
                 report.results.append(result)
                 continue
             result.answer = answer.text
+            checked = check_citations(answer.text, sources)
+            result.citations_present = bool(checked.cited)
+            result.citation_contract_ok = checked.valid
+            result.numeric_support_ok = not checked.unsupported_numbers if checked.cited else None
             result.citations_ok = citations_within_range(answer.text, len(sources))
             if entry["kind"] == "unanswerable":
                 result.refused = looks_like_refusal(answer.text)
@@ -253,6 +240,7 @@ def run_evaluation(
                     normalize(fact) in normalized for fact in entry["answer_must_contain"]
                 )
 
+        result.elapsed_seconds = round(time.perf_counter() - started, 4)
         report.results.append(result)
 
     return report

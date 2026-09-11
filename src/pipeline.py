@@ -14,6 +14,7 @@ import contextlib
 import logging
 import sys
 import time
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -30,7 +31,8 @@ if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 from src.config import settings
-from src.evaluation import load_golden_set, run_evaluation
+from src.evaluation import GOLDEN_SET_PATH, load_golden_set, run_evaluation
+from src.evaluation_artifacts import default_output, runtime_metadata, save_report
 from src.generation.answerer import (
     CopomAnswerer,
     GenerationUnavailableError,
@@ -186,7 +188,7 @@ def index(
     ) as span:
         start_time = time.perf_counter()
         qdrant = QdrantManager()
-        upsert_summary = qdrant.upsert_chunks(all_chunks, batch_size=batch_size)
+        upsert_summary = qdrant.sync_documents(silver_docs, batch_size=batch_size)
         elapsed = time.perf_counter() - start_time
 
         if span:
@@ -206,10 +208,14 @@ def index(
     table.add_row("Indexed Vector Points (Idempotent)", str(upsert_summary.upserted_points))
     table.add_row("Batch Count", str(upsert_summary.batch_count))
     table.add_row("Failed Vectors", str(upsert_summary.failed))
+    table.add_row("Unchanged Points", str(upsert_summary.skipped_points))
+    table.add_row("Obsolete Points Removed", str(upsert_summary.deleted_points))
     table.add_row("Total Vectors in Collection", str(qdrant.count_points()))
     table.add_row("Execution Time", f"{elapsed:.2f}s")
 
     console.print(table)
+    if upsert_summary.failed:
+        raise typer.Exit(code=1)
 
 
 @app.command(name="run-all")
@@ -383,6 +389,13 @@ def ask(
 
 @app.command()
 def evaluate(
+    golden_set: Annotated[
+        Path, typer.Option("--golden-set", exists=True, dir_okay=False)
+    ] = GOLDEN_SET_PATH,
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", help="JSON completo da execução; não sobrescreve arquivos."),
+    ] = None,
     limit: Annotated[
         int, typer.Option("--limit", "-k", help="Trechos recuperados por pergunta.")
     ] = 5,
@@ -402,7 +415,12 @@ def evaluate(
     ] = 0.0,
 ) -> None:
     """Score retrieval and grounding against the golden set in evaluation/."""
-    golden = load_golden_set()
+    golden = load_golden_set(golden_set)
+    output = output or default_output()
+    if output.exists():
+        raise typer.BadParameter("O arquivo de saída já existe; escolha outro --output.")
+    if limit < 1 or delay < 0:
+        raise typer.BadParameter("limit deve ser positivo e delay não negativo.")
     generate = bool(settings.LLM_API_KEY) if with_generation is None else with_generation
     if generate and not settings.LLM_API_KEY:
         console.print("[red]--with-generation exige LLM_API_KEY.[/red]")
@@ -422,9 +440,22 @@ def evaluate(
         "copom_rag_evaluation",
         {"openinference.span.kind": "EVALUATOR", "questions": len(golden["questions"])},
     ):
+        answerer = CopomAnswerer()
+        snapshot = answerer.qdrant.payload_snapshot()
+        if not snapshot:
+            raise typer.BadParameter("O índice está vazio; execute transform e index.")
+        metadata = runtime_metadata()
+        metadata["execution"] = "qdrant_server"
         report = run_evaluation(
-            CopomAnswerer(), golden, limit=limit, generate=generate, delay=delay
+            answerer,
+            golden,
+            limit=limit,
+            generate=generate,
+            delay=delay,
+            corpus_payloads=[row["payload"] for row in snapshot],
         )
+        save_report(report, golden, snapshot, output, limit, metadata)
+        console.print(f"Relatório reproduzível: {output}")
 
     detail = Table(title="Por pergunta", show_header=True, header_style="bold magenta")
     detail.add_column("Pergunta", style="cyan")
@@ -451,7 +482,8 @@ def evaluate(
     summary.add_row(f"hit@{limit}", f"{report.hit_at(limit):.0%}")
     summary.add_row("MRR", f"{report.mrr:.3f}")
     summary.add_row(
-        "[dim]hit@1 de um recuperador aleatório[/dim]", f"{report.random_hit1_baseline:.1%}"
+        "[dim]hit@1 aleatório no corpus completo (sem filtros)[/dim]",
+        f"{report.random_hit1_baseline:.1%}",
     )
     if report.provenance_accuracy is not None:
         summary.add_row("Reunião esperada recuperada", f"{report.provenance_accuracy:.0%}")

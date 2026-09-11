@@ -156,7 +156,9 @@ class TestRunEvaluation:
 
         class ThrottledAnswerer(FakeAnswerer):
             def generate(self, question, sources):
-                raise RuntimeError("Error code: 429 - Too Many Requests")
+                error = RuntimeError("Error code: 429 - Too Many Requests")
+                error.status_code = 429
+                raise error
 
         answerer = ThrottledAnswerer([make_source(1, "manter a taxa basica em 15,00% a.a.")])
         golden = {

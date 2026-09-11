@@ -1,8 +1,11 @@
 """Qdrant Vector Store Manager for idempotent collection management, batch upserts, and semantic search."""
 
+import hashlib
+import json
 import logging
 import uuid
 from dataclasses import dataclass, field
+from importlib.metadata import version
 from typing import Any
 
 from qdrant_client import QdrantClient
@@ -10,8 +13,9 @@ from qdrant_client.http import models
 from qdrant_client.http.exceptions import UnexpectedResponse
 
 from src.config import settings
-from src.processing.schemas import ChunkPayload
+from src.processing.schemas import ChunkPayload, SilverDocument
 from src.vectorstore.embeddings import EmbeddingGenerator, SparseEmbedder
+from src.vectorstore.filters import infer_meeting
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +51,8 @@ class UpsertSummary:
     upserted_points: int = 0
     batch_count: int = 0
     failed: int = 0
+    skipped_points: int = 0
+    deleted_points: int = 0
     errors: list[str] = field(default_factory=list)
 
 
@@ -212,6 +218,7 @@ class QdrantManager:
                     point_id = self.generate_point_id(chunk.metadata.doc_id, chunk.chunk_id)
                     payload = {
                         "text": chunk.text,
+                        "_index_signature": self.index_signature(),
                         **chunk.metadata.model_dump(),
                     }
                     indices, values = sparse
@@ -248,6 +255,94 @@ class QdrantManager:
 
         return summary
 
+    def index_signature(self) -> str:
+        """Include model identity and runtime version even if dimensions stay equal."""
+        identity = {
+            "dense": self.embedding_generator.model_name,
+            "provider": self.embedding_generator.provider,
+            "dimension": self.embedding_generator.dimension,
+            "sparse": self.sparse_embedder.model_name,
+            "language": self.sparse_embedder.language,
+            "fastembed": version("fastembed"),
+            "embedding_text_revision": 1,
+        }
+        return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+
+    def payload_snapshot(self, doc_id: str | None = None) -> list[dict[str, Any]]:
+        """Read actual indexed payloads, including pagination; fail on service errors."""
+        condition = (
+            models.Filter(
+                must=[models.FieldCondition(key="doc_id", match=models.MatchValue(value=doc_id))]
+            )
+            if doc_id is not None
+            else None
+        )
+        offset = None
+        rows = []
+        while True:
+            points, offset = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=condition,
+                limit=256,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            rows.extend({"id": str(p.id), "payload": p.payload or {}} for p in points)
+            if offset is None:
+                return sorted(rows, key=lambda row: row["id"])
+
+    def sync_documents(
+        self, documents: list[SilverDocument], batch_size: int | None = None
+    ) -> UpsertSummary:
+        """Sync complete documents. Partial upserts must use upsert_chunks instead.
+
+        Delete obsolete IDs only after every new chunk of that document succeeds.
+        In-place upserts are not transactional; retry repairs partial writes.
+        Never delete documents absent from the supplied Silver set.
+        """
+        if batch_size is not None and batch_size <= 0:
+            raise ValueError("batch_size must be positive")
+        ids = [d.doc_id for d in documents]
+        if len(ids) != len(set(ids)):
+            raise ValueError("Duplicate Silver document versions; resolve before indexing")
+        for doc in documents:
+            if any(
+                c.metadata.doc_id != doc.doc_id or c.metadata.total_chunks != len(doc.chunks)
+                for c in doc.chunks
+            ) or len({c.chunk_id for c in doc.chunks}) != len(doc.chunks):
+                raise ValueError(f"Incomplete or inconsistent Silver document: {doc.doc_id}")
+        self.ensure_collection()
+        summary = UpsertSummary(self.collection_name)
+        signature = self.index_signature()
+        for doc in documents:
+            existing = {row["id"]: row["payload"] for row in self.payload_snapshot(doc.doc_id)}
+            expected = {self.generate_point_id(doc.doc_id, c.chunk_id): c for c in doc.chunks}
+            changed = [
+                c
+                for point_id, c in expected.items()
+                if existing.get(point_id)
+                != {"text": c.text, "_index_signature": signature, **c.metadata.model_dump()}
+            ]
+            summary.total_chunks += len(doc.chunks)
+            summary.skipped_points += len(doc.chunks) - len(changed)
+            result = self.upsert_chunks(changed, batch_size=batch_size)
+            summary.upserted_points += result.upserted_points
+            summary.batch_count += result.batch_count
+            summary.failed += result.failed
+            summary.errors.extend(result.errors)
+            if result.failed:
+                continue
+            stale = sorted(existing.keys() - expected.keys())
+            if stale:
+                self.client.delete(
+                    self.collection_name,
+                    points_selector=models.PointIdsList(points=stale),
+                    wait=True,
+                )
+                summary.deleted_points += len(stale)
+        return summary
+
     def search(
         self,
         query: str,
@@ -281,6 +376,10 @@ class QdrantManager:
         if not query_vector:
             return []
 
+        # Explicit caller filters take precedence over text inference.
+        if filter_meeting is None:
+            filter_meeting = infer_meeting(query)
+
         # Build query filters
         conditions = []
         if filter_year is not None:
@@ -298,10 +397,7 @@ class QdrantManager:
 
         sparse_indices, sparse_values = self.sparse_embedder.embed_query(query)
 
-        # Hybrid: dense and BM25 each produce a ranking, fused by Reciprocal Rank
-        # Fusion. RRF combines positions rather than scores, so it needs no
-        # normalisation between cosine (0-1) and BM25 (unbounded) -- and it has no
-        # weight to tune wrong.
+        # Both branches use the same metadata filter before DBSF fusion.
         candidates = limit * PREFETCH_MULTIPLIER
         search_results = self.client.query_points(
             collection_name=self.collection_name,

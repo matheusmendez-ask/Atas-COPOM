@@ -103,3 +103,67 @@ class TestPage:
         assert response.status_code == 200
         assert "Atas do Copom" in response.text
         assert "/api/ask" in response.text
+
+
+def test_web_passes_filters_and_shows_actual_selection():
+    from unittest.mock import Mock
+
+    answerer = FakeAnswerer()
+    answerer.retrieve = Mock(return_value=[make_source()])
+    response = TestClient(create_app(answerer)).post(
+        "/api/ask",
+        json={
+            "question": "Decisão da reunião 279",
+            "meeting": 280,
+            "year": 2026,
+        },
+    )
+    assert response.status_code == 200
+    answerer.retrieve.assert_called_once_with(
+        "Decisão da reunião 279", limit=5, filter_year=2026, filter_meeting=280
+    )
+    assert response.json()["applied_meeting"] == 280
+    assert response.json()["citation_check"]["semantic_support"] == "not_verified"
+
+
+def test_whitespace_question_does_not_trigger_generation(client):
+    assert client.post("/api/ask", json={"question": "   "}).status_code == 422
+
+
+def test_status_does_not_load_models_and_distinguishes_outage(monkeypatch):
+    from unittest.mock import Mock
+
+    monkeypatch.setattr(
+        "src.web.app.CopomAnswerer", Mock(side_effect=AssertionError("model loaded"))
+    )
+    monkeypatch.setattr("src.web.app.QdrantClient", Mock(side_effect=ConnectionError("offline")))
+    client = TestClient(create_app())
+    assert client.get("/").status_code == 200
+    status = client.get("/api/status").json()
+    assert status["index_state"] == "unavailable"
+    assert status["indexed_chunks"] is None
+
+
+def test_official_links_reject_non_bcb_urls():
+    from src.web.app import official_source_url
+
+    assert official_source_url("https://www.bcb.gov.br/api/servico")
+    for url in (
+        "javascript:alert(1)",
+        "https://bcb.gov.br.example.org/",
+        "https://user@bcb.gov.br/",
+        "http://bcb.gov.br/",
+    ):
+        assert official_source_url(url) == ""
+
+
+def test_retrieval_failure_is_service_unavailable():
+    from unittest.mock import Mock
+
+    answerer = FakeAnswerer()
+    answerer.retrieve = Mock(side_effect=ConnectionError("private details"))
+    response = TestClient(create_app(answerer)).post(
+        "/api/ask", json={"question": "Qual a decisão?"}
+    )
+    assert response.status_code == 503
+    assert "private details" not in response.text

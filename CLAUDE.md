@@ -19,7 +19,7 @@ python -m pytest tests/test_ingestion.py::TestIngestionSchemas::test_raw_ata_ite
 
 **Não reintroduza `arize-phoenix` nas dependências de runtime.** O código nunca importa `phoenix` — só o exportador OTLP/HTTP; o servidor Phoenix roda como container. Instalar o pacote traz o `arize-phoenix-client`, que registra um plugin pytest (entry point `pytest11` chamado `phoenix`) carregado automaticamente; ele importa `phoenix`, que usa `mappingproxy` como default de dataclass — aceito só a partir do 3.12. Com ele instalado, **no Python 3.11 o pytest nem chega a coletar** (o projeto declara `requires-python = ">=3.11"` e a CI testa 3.11).
 
-Estado medido em 2026-09-01: **81 passed, 85% de cobertura**. Números fixos em documento defasam — três vezes nesta base já. A CI publica `coverage.xml` como artefato; um Codecov encerraria o problema.
+Estado local medido em 2026-09-10: **110 passed, 86% de cobertura**, Python 3.11.3; CI desta alteração ainda não executada. Números fixos em documento defasam — três vezes nesta base já. A CI publica `coverage.xml` como artefato; um Codecov encerraria o problema.
 
 Pipeline (cada etapa roda isolada; o disco é a interface entre elas):
 ```bash
@@ -38,7 +38,7 @@ python -m src.pipeline evaluate --with-generation --delay 25   # inclui fatos, c
 
 **Reranking com cross-encoder já foi testado e REJEITADO** (2026-09-01). Não refaça sem medir antes: os três modelos do FastEmbed pioraram o hit@1 — jina-reranker-v2-multilingual 73%→55% a 5,16s/pergunta, bge-reranker-base 41%, ms-marco-MiniLM 64%, contra 0,16s/pergunta sem reranker. Reordenam por relevância de domínio geral, enquanto aqui a distinção está em números e em qual reunião. A tabela completa está no README.
 
-**Antes de mexer em chunking, embeddings ou prompt, rode o `evaluate` e anote o número.** Estado conhecido em 2026-08-31, medido no **Qdrant servidor** com 575 chunks de 15 reuniões (266–280): hit@1 68%, hit@3 86%, hit@5 86%, MRR 0,765, proveniência 83%, fatos 83%, citações 100%, recusa 8/8. Baseline aleatório 0,4%.
+**Antes de mexer em chunking, embeddings ou prompt, rode o `evaluate` e anote o número.** Estado conhecido em 2026-08-31, medido no **Qdrant servidor** com 575 chunks de 15 reuniões (266–280): hit@1 68%, hit@3 86%, hit@5 86%, MRR 0,765, proveniência 83%, fatos 83%, citações 100%, recusa 8/8. O baseline de 0,4% pertencia ao corpus em memória; não foi recalculado no registro histórico do servidor.
 
 **Números maiores em relatos antigos vieram de Qdrant em memória sobre 403 chunks de 11 reuniões** (hit@1 73%). Servem para comparar configurações entre si, não com o servidor — o corpus real tem 172 chunks a mais de distratores. Ao medir, diga sempre qual corpus usou.
 
@@ -65,7 +65,7 @@ BCB API ──ingest──> data/bronze/year=YYYY/month=MM/{doc_id}_{short_hash}
                     └─ BronzeAtaRecord (raw_content HTML + SHA-256)
          ──transform─> data/silver/year=YYYY/month=MM/{doc_id}_silver.json
                     └─ SilverDocument { clean_text, chunks: [ChunkPayload] }
-         ──index────> Qdrant collection `copom_minutes` (cosseno, 384d)
+         ──index────> Qdrant collection `copom_minutes` (dense 1024d + BM25 esparso)
                     └─ point id = UUIDv5(NAMESPACE_URL, "doc_id:chunk_id")
 ```
 
@@ -85,9 +85,9 @@ Três mecanismos distintos, cada um com uma pegadinha:
 2. **Promoção Bronze→Silver — versão corrente.** O Silver indexa por `doc_id` (`{doc_id}_silver.json`, sem hash), então só pode receber **um** registro por documento. `BronzeCollector.select_current_versions()` elege o de `ingested_at` mais recente, com desempate por `content_hash` para nunca depender da ordem do filesystem. **Sempre passe o histórico por ele antes de promover** — chamar `load_all_records()` direto reintroduz um bug em que a versão obsoleta vence quando o hash dela ordena depois.
 3. **Gold — UUIDv5 determinístico.** `generate_point_id(doc_id, chunk_id)` garante que reindexar atualiza o ponto em vez de duplicar.
 
-Nenhuma etapa é **incremental**: `transform` reprocessa todo o Bronze e `index` re-embeda todos os chunks a cada execução. Idempotente ≠ barato.
+`transform` reprocessa as versões correntes do Bronze. `index` sincroniza documentos completos: reaproveita payloads inalterados com a mesma assinatura de embedding e remove IDs obsoletos somente depois de concluir o documento. Uma falha pode deixar upserts parciais; repetir a sincronização os repara. Não há transação entre todos os pontos.
 
-### Embeddings: multilingual, assimétrico e com fallback silencioso
+### Embeddings: multilingual, assimétrico e sem fallback silencioso
 
 O default é `intfloat/multilingual-e5-large` (1024-d). A escolha foi medida, não chutada — `hit@1` sobre 102 chunks de 16 reuniões: e5-large 9/10, `bge-small-en` 9/10, `paraphrase-multilingual-MiniLM-L12-v2` 6/10. **Não troque para o MiniLM**: ele é multilingual, mas treinado para paráfrase simétrica, e erra 3 perguntas que os outros acertam.
 
@@ -101,7 +101,7 @@ O e5-large baixa 2,2 GB no primeiro uso, então a CI sobrescreve `EMBEDDING_MODE
 
 **Não reintroduza fallback aqui.** A versão anterior trocava em silêncio pelo modelo default (inglês, 384-d — dimensão que às vezes batia, então nada denunciava) e, no limite, gerava vetores pseudo-aleatórios de SHA-256. O único sintoma era busca ruim, que aponta para o chunking em vez da causa real. Os testes não precisam disso: eles injetam um modelo falso direto em `_model`.
 
-Além disso, `ensure_collection()` só verifica se a coleção **existe pelo nome** — não confere a dimensão. Trocar `EMBEDDING_MODEL_NAME`/`EMBEDDING_DIMENSION` exige apagar e recriar a coleção manualmente.
+`ensure_collection()` valida o vetor denso nomeado e sua dimensão. A sincronização registra a identidade dos modelos e a versão do FastEmbed para evitar reaproveitar embeddings de outra configuração.
 
 ### Detalhes que não são óbvios pelo código
 
@@ -123,3 +123,16 @@ Além disso, `ensure_collection()` só verifica se a coleção **existe pelo nom
 ## Testes
 
 `tests/conftest.py` traz HTML sintético de ata (com as seções A/B/C reais do COPOM), respostas mockadas dos dois endpoints e um `in_memory_qdrant` usando `QdrantClient(location=":memory:")`. **A suíte não precisa de Docker nem de rede** — o `requests` é mockado e o Qdrant é em memória. Se um teste novo exigir serviço externo, é sinal de que o desenho está errado.
+
+
+## Avaliação e sincronização (2026-09-10)
+
+- As 30 perguntas existentes são desenvolvimento; `evaluation/test_set.json` é teste prospectivo. Não ajuste parâmetros com seu placar.
+- `evaluate --retrieval-only --output caminho.json` salva snapshot real do índice, configuração sem segredos, versões, hashes e resultados por pergunta. Nunca publique chaves ou conteúdo de `.env` em relatórios.
+- `python -m src.experiments --chunk-sizes 150` compara inferência de reunião com os mesmos vetores em memória; não altera o servidor.
+- `sync_documents` aceita documentos completos; `upsert_chunks` continua disponível para lotes parciais sem remoção. Limpeza só após sucesso por documento; não é transacional e exige um único escritor durante indexação.
+- A verificação de citações separa IDs, presença e números nos trechos citados; `semantic_support=not_verified`. Não chame isso de prova de ausência de alucinação.
+- `python scripts/demo.py` inicia a demonstração; `--prepare` também executa coleta, transformação e indexação.
+
+
+Medição em memória de 2026-09-10 (15 atas, 575 chunks, FastEmbed 0.8.0): inferência de reunião mudou hit@1 15/22 → 17/22, hit@5 19/22 → 20/22, MRR 0,765 → 0,833 e proveniência 5/6 → 6/6. `focus-278` agora rank 1. Relatórios em `evaluation/results/`; método em `evaluation/VALIDATION.md`. Não apresentar isso como medição nova do servidor ou de geração.

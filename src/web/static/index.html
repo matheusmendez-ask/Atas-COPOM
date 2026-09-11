@@ -199,6 +199,12 @@ button[type=submit]:disabled { opacity: 0.45; cursor: not-allowed; }
   form { flex-direction: column; }
   .source-text { margin-left: 0; }
 }
+.filters { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 0.8rem; }
+.filters label { display: flex; flex-direction: column; gap: 0.3rem; }
+.filters input { width: 9rem; min-width: 0; padding: 0.5rem; }
+.source-head { flex-wrap: wrap; }
+.source-text, .answer { overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; scroll-behavior: auto !important; } }
 </style>
 </head>
 <body>
@@ -214,6 +220,10 @@ button[type=submit]:disabled { opacity: 0.45; cursor: not-allowed; }
            autocomplete="off" required minlength="3" maxlength="500" aria-label="Sua pergunta">
     <button type="submit" id="go">Perguntar</button>
   </form>
+  <div class="filters">
+    <label for="meeting">Reunião (opcional)<input id="meeting" type="number" min="1" max="999" form="form" placeholder="Ex.: 278"></label>
+    <label for="year">Ano (opcional)<input id="year" type="number" min="1990" max="2100" form="form" placeholder="Ex.: 2026"></label>
+  </div>
 
   <section class="primer" id="primer">
     <p>Três perguntas para começar. A última não tem resposta nas atas, de propósito.</p>
@@ -237,16 +247,13 @@ button[type=submit]:disabled { opacity: 0.45; cursor: not-allowed; }
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
-fetch("/api/status").then((r) => r.json()).then((s) => {
-  const parts = [
-    `<span><b>${s.indexed_chunks.toLocaleString("pt-BR")}</b> trechos indexados</span>`,
-    `<span>busca <b>${esc(s.embedding_model.split("/").pop())}</b> + BM25</span>`,
-  ];
-  parts.push(s.generation_ready
-    ? `<span>resposta por <b>${esc(s.llm_model.split("/").pop())}</b></span>`
-    : `<span>sem <b>LLM_API_KEY</b>: geração indisponível</span>`);
-  $("#state").innerHTML = parts.join("");
-}).catch(() => { $("#state").innerHTML = "<span>índice fora do ar</span>"; });
+fetch("/api/status").then((r) => { if (!r.ok) throw new Error(); return r.json(); }).then((s) => {
+  const index = s.index_state === "unavailable" ? "Índice indisponível"
+    : s.index_state === "empty" ? "Nenhuma ata indexada ainda"
+    : `${s.indexed_chunks.toLocaleString("pt-BR")} trechos disponíveis para consulta`;
+  const generation = s.generation_ready ? "Geração configurada" : "Geração ainda não configurada";
+  $("#state").textContent = `${index} · ${generation}`;
+}).catch(() => { $("#state").textContent = "Não foi possível consultar o estado do serviço"; });
 
 document.querySelectorAll(".examples button").forEach((b) =>
   b.addEventListener("click", () => { $("#q").value = b.dataset.q; submit(); }));
@@ -262,6 +269,7 @@ function renderAnswer(text, count) {
 }
 
 async function submit() {
+  if ($("#go").disabled || !$("#form").reportValidity()) return;
   const question = $("#q").value.trim();
   if (question.length < 3) return;
 
@@ -275,14 +283,14 @@ async function submit() {
     const res = await fetch("/api/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ question, meeting: $("#meeting").value ? Number($("#meeting").value) : null, year: $("#year").value ? Number($("#year").value) : null }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
 
     const badge = data.refused
       ? '<span class="verdict declined">Sem resposta nas atas</span>'
-      : '<span class="verdict grounded">Fundamentado</span>';
+      : '<span class="verdict grounded">Resposta com fontes</span>';
 
     const sources = data.sources.map((s) => `
       <article class="source" id="src-${s.index}">
@@ -290,7 +298,7 @@ async function submit() {
           <span class="source-n">${s.index}</span>
           <span class="source-ref">Reunião ${s.nro_reuniao}</span>
           <span>${esc(s.data_publicacao)}</span>
-          <span class="source-score">${s.score.toFixed(3)}</span>
+          ${s.source_url ? `<a href="${esc(s.source_url)}" target="_blank" rel="noopener noreferrer">Abrir fonte no BCB</a>` : ""}
         </div>
         <p class="source-text">${esc(s.text)}</p>
       </article>`).join("");
@@ -299,6 +307,8 @@ async function submit() {
       <div class="exchange">
         <p class="asked">${esc(data.question)}</p>
         ${badge}
+        <p>${data.applied_meeting ? `Reunião ${data.applied_meeting}` : "Todas as reuniões"}${data.applied_year ? ` · Ano ${data.applied_year}` : ""}</p>
+        ${data.citation_check?.unsupported_numbers?.length ? '<p role="status">Há números que não foram encontrados nos trechos citados. Confira as fontes antes de usar a resposta.</p>' : ""}
         <p class="answer${data.refused ? " is-declined" : ""}">${renderAnswer(data.answer, data.sources.length)}</p>
         <div class="meta">
           <span>${esc(data.model)}</span>
@@ -308,8 +318,8 @@ async function submit() {
         ${data.sources.length ? `<section class="sources">
           <h2>Trechos consultados</h2>
           <p>${data.refused
-              ? "Recuperados, mas nenhum responde à pergunta."
-              : "A resposta acima não pode afirmar nada que não esteja aqui."}</p>
+              ? "Trechos consultados; o sistema declarou não encontrar informação suficiente."
+              : "Confira se os trechos sustentam a resposta. A existência de citações não garante a correção de todas as afirmações."}</p>
           ${sources}</section>` : ""}
       </div>`;
 

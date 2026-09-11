@@ -8,7 +8,7 @@
 [![CI](https://github.com/matheusmendez-ask/Atas-COPOM/actions/workflows/ci.yml/badge.svg)](https://github.com/matheusmendez-ask/Atas-COPOM/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Status em 2026-09-01:** CI verde em Python 3.11 e 3.12 · 81 testes · 85% de cobertura · avaliação de RAG com hit@1 de 68% e recusa de 8/8 nas perguntas-armadilha.
+**Validação local em 2026-09-10:** 110 testes aprovados · 86% de cobertura · Python 3.11.3. O badge mostra a CI do último push, não esta alteração local. As métricas de RAG históricas e o corpus de cada execução estão discriminados abaixo.
 
 *O badge de CI acima é dinâmico e reflete o último push. Os demais valores são datados e conferidos à mão; a CI publica `coverage.xml` como artefato, então um Codecov encerraria a defasagem.*
 
@@ -114,17 +114,17 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
 6. **Avaliação com golden set (o projeto se mede)**:
    - `evaluation/golden_set.json`: 30 perguntas — 22 respondíveis e **8 armadilhas**, cujas respostas não existem no corpus e que o sistema precisa recusar.
    - Rótulos ancorados em **trechos textuais**, não em `chunk_id`: o gabarito sobrevive a mudar `CHUNK_SIZE` ou trocar de modelo de embedding.
-   - Cada âncora foi verificada contra o corpus antes de ser gravada, e o arquivo registra o **`hit@1` que um recuperador aleatório obteria** (média de 3,6%) — um placar só significa algo bem acima dele.
+   - Cada âncora foi verificada contra o corpus antes de ser gravada, e o arquivo registra o **`hit@1` que um recuperador aleatório obteria** (dependente do corpus e da configuração de chunks) — um placar só significa algo bem acima dele.
    - Correção determinística, sem juiz-LLM: um segundo modelo avaliando o primeiro deixaria ambíguo qual dos dois errou, custaria tokens e não seria reproduzível.
 
    ```bash
-   python -m src.pipeline evaluate --limit 5                      # só recuperação, sem credencial
+   python -m src.pipeline evaluate --retrieval-only --limit 5     # só recuperação
    python -m src.pipeline evaluate --with-generation --delay 25   # inclui fatos, citações e recusa
    ```
 
    O `--delay` existe porque free tiers estrangulam rajadas: 30 chamadas seguidas esgotam a cota, e a janela do limite dura mais do que qualquer backoff razoável dentro da requisição.
 
-   **Recuperação medida (2026-08-31, 22 perguntas respondíveis sobre 66 chunks de 11 reuniões):**
+   **Recuperação histórica (22 perguntas respondíveis):**
 
    **Medição de referência — Qdrant servidor, 575 chunks de 15 reuniões (266–280), 2026-08-31:**
 
@@ -135,11 +135,11 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
    | hit@5 | **86%** |
    | MRR | **0,765** |
    | Reunião esperada recuperada | 83% |
-   | *hit@1 de um recuperador aleatório* | *0,4%* |
+   | *Baseline aleatório no corpus do servidor* | *não recalculado no registro histórico* |
 
-   Dezenove das 22 perguntas respondíveis vêm em **rank 1** — a distribuição é melhor do que o hit@1 isolado sugere.
+   **15/22 perguntas respondíveis tiveram a passagem esperada em rank 1 (68%) e 19/22 no top 5 (86%).**
 
-   **A evolução abaixo foi medida em Qdrant em memória sobre um corpus menor** (403 chunks, 11 reuniões), porque cada passo precisava ser comparável ao anterior. Os valores servem para comparar configurações entre si, não com a linha acima.
+   **A evolução abaixo foi medida em Qdrant em memória sobre 11 reuniões.** As configurações com chunks de 800 tokens usaram 66 chunks; a configuração final de 150 tokens usou 403. Cada comparação deve considerar essa diferença de segmentação e o corpus empregado.
 
    | Configuração | hit@1 | hit@3 | hit@5 | MRR | Proveniência |
    | :--- | ---: | ---: | ---: | ---: | ---: |
@@ -148,7 +148,7 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
    | Híbrida (denso + BM25, fusão DBSF) | 36% | 59% | 77% | 0,508 | 100% |
    | + chunks de 150 tokens | 73% | 86% | 86% | 0,795 | 83% |
 
-   A configuração final, remedida contra o servidor com 172 chunks a mais de distratores e quatro reuniões sem pergunta correspondente, perdeu **uma** pergunta no hit@1 (73% → 68%) e manteve hit@3, hit@5 e recusa idênticos. Um teste mais difícil devolvendo quase o mesmo número é o melhor indício de que as comparações em memória eram válidas.
+   A configuração final, remedida contra o servidor com 172 chunks a mais de distratores e quatro reuniões sem pergunta correspondente, perdeu **uma** pergunta no hit@1 (73% → 68%) e manteve hit@3, hit@5 e recusa idênticos. Essa comparação é descritiva: a amostra pequena não estabelece generalização nem significância estatística.
 
    Duas correções guiadas por medição, cada uma provada contra o gabarito antes de entrar.
 
@@ -172,11 +172,11 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
    | 250 / 40 | 244 | 0,7% | 64% | 77% | 82% | 0,708 | 83% |
    | **150 / 25** | 403 | 0,4% | **73%** | **86%** | **86%** | **0,795** | 83% |
 
-   Duas checagens tornam essa comparação honesta. **As 22 âncoras foram verificadas em cada tamanho** — nenhuma ficou partida entre chunks, então um placar diferente mede o sistema, não o gabarito. E o **baseline aleatório foi recalculado por corpus**: caiu de 2,5% para 0,4%, ou seja, o problema ficou 6× mais difícil e ainda assim o placar dobrou.
+   Duas checagens tornam essa comparação honesta. **As 22 âncoras foram verificadas em cada tamanho** — nenhuma ficou partida entre chunks, então um placar diferente mede o sistema, não o gabarito. E o **baseline aleatório foi recalculado por corpus**: caiu de 2,5% para 0,4%, essa mudança não mede uma dificuldade equivalente nem demonstra significância estatística com apenas 22 perguntas.
 
    O custo que a métrica de recuperação não enxerga — cinco passagens de 150 tokens dão ~750 tokens de contexto ao modelo, contra ~4.000 antes — foi medido à parte e **não se materializou**: fatos 5/6, citações 100% e recusa 8/8, idênticos aos de 800 tokens.
 
-   **Reranking com cross-encoder foi testado e rejeitado (2026-09-01).** É a técnica que a literatura recomenda quando o hit@1 trava, e os três modelos disponíveis no FastEmbed **pioraram** a recuperação:
+   **Reranking com cross-encoder foi testado e rejeitado (2026-09-01).** É a técnica que a literatura recomenda quando o hit@1 trava, e os três modelos experimentados via FastEmbed **pioraram** a recuperação:
 
    | Configuração | hit@1 | hit@3 | hit@5 | MRR | Prov. | s/pergunta |
    | :--- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -185,7 +185,7 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
    | `BAAI/bge-reranker-base` | 41% | 82% | 82% | 0,598 | 83% | 6,45 |
    | `jinaai/jina-reranker-v2-base-multilingual` | 55% | 73% | 82% | 0,647 | 100% | 5,16 |
 
-   O melhor deles custa 32× mais latência para perder 18 pontos de hit@1. A hipótese: esses modelos são treinados em pares pergunta-passagem de domínio geral (MS MARCO), e aqui a distinção entre passagens está em **números** e em **qual reunião** — não na relevância semântica que eles aprenderam. Reordenam por um critério que não é o que este corpus precisa, desmanchando um ranking que a busca híbrida com identidade de documento já tinha acertado.
+   O Jina custou aproximadamente 32× mais latência e perdeu 18 pontos percentuais de hit@1 nessa execução. A hipótese: esses modelos são treinados em pares pergunta-passagem de domínio geral (MS MARCO), e aqui a distinção entre passagens está em **números** e em **qual reunião** — não na relevância semântica que eles aprenderam. Reordenam por um critério que não é o que este corpus precisa, desmanchando um ranking que a busca híbrida com identidade de documento já tinha acertado.
 
    Sintoma revelador: o Jina *encontra* as três perguntas do Focus (ranks 1, 5, 3) onde o sistema atual perde uma (1, –, 2). Melhora o recall e piora a ordenação.
 
@@ -203,11 +203,11 @@ Uma esteira completa de engenharia de dados e lakehouse vetorial para processame
 
    Medido contra o índice real, não em memória: a taxa de recusa de 100% não é artefato do ambiente de teste.
 
-   **O sistema não alucina.** Nas 8 perguntas cujas respostas não existem no corpus, ele recusou todas, explicitamente: *"Os trechos fornecidos não contêm informações sobre a regulação de bitcoin e criptomoedas."* Nenhuma citação apontou para passagem inexistente.
+   **Nas 8 perguntas de recusa avaliadas, o sistema recusou 8/8; isso não garante ausência de alucinações.** Nas 8 perguntas cujas respostas não existem no corpus, ele recusou todas, explicitamente: *"Os trechos fornecidos não contêm informações sobre a regulação de bitcoin e criptomoedas."* Nenhuma citação apontou para passagem inexistente.
 
    O único fato não confirmado (`focus-278`) merece leitura cuidadosa: o modelo respondeu *"os trechos fornecidos não contêm as expectativas de inflação para 2026 e 2027"* — ou seja, **recusou corretamente**, porque a recuperação não lhe entregou a passagem certa. A falha é de recuperação, e a geração a tratou com honestidade em vez de inventar números. É exatamente o comportamento desejado diante de contexto insuficiente.
 
-   Isso separa os dois problemas: **a recuperação é o elo fraco (32% de hit@1), a geração é confiável.** Melhorar o sistema significa melhorar a busca, não o prompt.
+   Isso separa os dois problemas: **na configuração histórica de busca densa, o hit@1 foi 32%; na configuração final do servidor, 68%.** Os resultados de geração são limitados a seis perguntas com fatos esperados e oito recusas; não garantem confiabilidade fora dessa amostra.
 
    O diagnóstico que só a medição tornou visível: o sistema recuperava **o tópico certo do documento errado**. Para "decisão da 280ª reunião", os cinco primeiros resultados eram seções de decisão das atas 277, 278, 276, 274 e 279, com scores entre 0,859 e 0,870 — as atas do Copom são formulaicas, e `nro_reuniao` vivia no payload do Qdrant, que filtra mas não embute. A correção é `ChunkPayload.embedding_text`: o vetor passa a ser calculado sobre o trecho prefixado com a identidade do documento, enquanto o texto exibido continua limpo.
 
@@ -432,3 +432,29 @@ Acesse o painel do Phoenix em [http://localhost:6006](http://localhost:6006) par
 ## 📜 Licença
 
 Distribuído sob a licença MIT. Veja `LICENSE` para mais detalhes.
+
+
+## Melhorias de avaliação e demonstração (2026-09-10)
+
+Para iniciar a interface local com Docker Desktop disponível:
+
+```bash
+python scripts/demo.py
+# Primeira utilização, incluindo coleta e indexação:
+python scripts/demo.py --prepare
+```
+
+O comando instala os extras web e geração em `.venv`, sobe Qdrant/Phoenix e serve em `http://localhost:8000`. Configure uma chave válida em `.env` a partir de `.env.example` para gerar respostas. Sem chave, a interface informa a configuração pendente. A preparação usa as atas atuais da API; não recria automaticamente o corpus histórico das tabelas.
+
+A interface oferece filtros opcionais por reunião e ano, links para as fontes oficiais disponíveis e estados distintos para índice vazio e serviço indisponível. “Resposta com fontes” indica citações, não uma garantia de fundamentação. Respostas sem citação ou com referências inexistentes são rejeitadas; números ausentes nos trechos citados geram aviso. A checagem numérica é heurística e não comprova suporte semântico.
+
+A busca infere a reunião somente de referências explícitas (por exemplo, “278ª reunião” ou “reunião 278”). Filtros fornecidos pelo usuário têm precedência. Comparações e referências ambíguas preservam a busca ampla.
+
+`index` agora sincroniza documentos completos, evita reembutir trechos inalterados e remove trechos obsoletos após uma atualização bem-sucedida. Não remove documentos ausentes do conjunto fornecido. Upserts não são transacionais; após uma falha, repita a indexação para concluir a atualização.
+
+As 30 perguntas históricas são desenvolvimento. Há 10 perguntas novas em `evaluation/test_set.json`, reservadas para teste e ainda sem revisão independente. Comandos, limites das métricas e formato dos relatórios estão em [evaluation/README.md](evaluation/README.md). As tabelas anteriores são resultados históricos; não representam uma nova execução desta versão.
+
+Detalhes da validação local e das limitações: [evaluation/VALIDATION.md](evaluation/VALIDATION.md).
+
+
+**Resultado novo, medido em 2026-09-10:** com as mesmas 15 atas e 575 chunks em Qdrant **em memória**, a inferência de reunião elevou hit@1 de **15/22 (68,2%) para 17/22 (77,3%)**, hit@5 de **19/22 para 20/22** e proveniência de **5/6 para 6/6**. O caso `focus-278` passou a rank 1. São resultados de desenvolvimento, sem nova avaliação de geração. [Método e relatórios completos](evaluation/VALIDATION.md).

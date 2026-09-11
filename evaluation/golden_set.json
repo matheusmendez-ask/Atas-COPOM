@@ -2,7 +2,7 @@
   "schema_version": 1,
   "description": "Golden set de avaliacao de RAG sobre atas do Copom. Rotulos ancorados em trechos textuais (nao em chunk_id) para sobreviver a mudancas de CHUNK_SIZE e de modelo de embedding.",
   "method": "Perguntas escritas a partir da leitura das atas reais. Cada ancora foi verificada programaticamente contra o corpus antes de ser gravada: as answerable precisam existir, as unanswerable precisam estar ausentes. 'random_hit1_baseline' e a fracao do corpus que casa com a ancora, ou seja, o hit@1 que um recuperador aleatorio obteria - um placar so significa algo bem acima dele.",
-  "caveat": "Conjunto pequeno e de autor unico: mede concordancia com a leitura de quem o escreveu, nao verdade independente. Para endurecer: mais perguntas, segundo anotador, e perguntas multi-ata.",
+  "caveat": "Conjunto pequeno e de autor unico: mede concordancia com a leitura de quem o escreveu, nao verdade independente. Para endurecer: mais perguntas, segundo anotador, e perguntas multi-ata. As 30 perguntas já foram usadas em ajustes; nenhuma é teste independente.",
   "corpus": {
     "meetings": [
       270,
@@ -522,5 +522,6 @@
         "random_hit1_baseline": 0.0
       }
     }
-  ]
+  ],
+  "split": "development"
 }

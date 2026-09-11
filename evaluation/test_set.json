@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "split": "test",
+  "description": "10 perguntas novas: 8 respondíveis nas atas 266–269 e 2 recusas esperadas.",
+  "caveat": "Conjunto de teste prospectivo, de autor único; não usar para ajustar parâmetros. As atas já estavam no corpus. Ainda precisa de revisão humana independente. Após usar resultados para ajustar o sistema, trate esta versão como desenvolvimento.",
+  "questions": [
+    {
+      "id": "test-selic-266",
+      "kind": "answerable",
+      "question": "Na reunião 266, para qual percentual anual foi ajustada a taxa básica de juros?",
+      "expected_meeting": 266,
+      "must_retrieve_any": [
+        "para 11,25% a.a."
+      ],
+      "answer_must_contain": [
+        "11,25"
+      ]
+    },
+    {
+      "id": "test-selic-267",
+      "kind": "answerable",
+      "question": "Na reunião 267, para qual percentual anual foi ajustada a taxa básica de juros?",
+      "expected_meeting": 267,
+      "must_retrieve_any": [
+        "para 12,25% a.a."
+      ],
+      "answer_must_contain": [
+        "12,25"
+      ]
+    },
+    {
+      "id": "test-selic-268",
+      "kind": "answerable",
+      "question": "Na reunião 268, para qual percentual anual foi ajustada a taxa básica de juros?",
+      "expected_meeting": 268,
+      "must_retrieve_any": [
+        "para 13,25% a.a."
+      ],
+      "answer_must_contain": [
+        "13,25"
+      ]
+    },
+    {
+      "id": "test-selic-269",
+      "kind": "answerable",
+      "question": "Na reunião 269, para qual percentual anual foi ajustada a taxa básica de juros?",
+      "expected_meeting": 269,
+      "must_retrieve_any": [
+        "para 14,25% a.a."
+      ],
+      "answer_must_contain": [
+        "14,25"
+      ]
+    },
+    {
+      "id": "test-sinalizacao-267",
+      "kind": "answerable",
+      "question": "Na ata 267, qual era a indicação para a magnitude dos ajustes nas próximas duas reuniões?",
+      "expected_meeting": 267,
+      "must_retrieve_any": [
+        "ajustes de mesma magnitude nas próximas duas reuniões"
+      ]
+    },
+    {
+      "id": "test-sinalizacao-269",
+      "kind": "answerable",
+      "question": "Na reunião 269, como o Comitê descreveu o tamanho do ajuste que antevia para a reunião seguinte?",
+      "expected_meeting": 269,
+      "must_retrieve_any": [
+        "um ajuste de menor magnitude na próxima reunião"
+      ]
+    },
+    {
+      "id": "test-riscos-266",
+      "kind": "answerable",
+      "question": "Na reunião 266, o que uma desaceleração global mais acentuada representava para o balanço de riscos?",
+      "expected_meeting": 266,
+      "must_retrieve_any": [
+        "uma desaceleração da atividade econômica global mais acentuada"
+      ]
+    },
+    {
+      "id": "test-compromisso-269",
+      "kind": "answerable",
+      "question": "Na reunião 269, qual compromisso ditaria a magnitude total do ciclo de aperto monetário?",
+      "expected_meeting": 269,
+      "must_retrieve_any": [
+        "firme compromisso de convergência da inflação à meta"
+      ]
+    },
+    {
+      "id": "test-ausencia-telefone",
+      "kind": "unanswerable",
+      "question": "Qual é o telefone pessoal de cada membro do Copom?",
+      "absent_terms": [
+        "telefone pessoal"
+      ]
+    },
+    {
+      "id": "test-ausencia-senha",
+      "kind": "unanswerable",
+      "question": "Qual senha permite acessar a rede sem fio da sala de reuniões do Copom?",
+      "absent_terms": [
+        "senha"
+      ]
+    }
+  ]
+}

@@ -68,7 +68,7 @@ class TestPipelineCLI:
 
         with (
             patch("src.pipeline.AtaChunker.load_all_silver_documents", return_value=[mock_doc]),
-            patch("src.pipeline.QdrantManager.upsert_chunks", return_value=mock_upsert_summary),
+            patch("src.pipeline.QdrantManager.sync_documents", return_value=mock_upsert_summary),
             patch("src.pipeline.QdrantManager.count_points", return_value=5),
         ):
             result = runner.invoke(app, ["index", "--batch-size", "10"])
